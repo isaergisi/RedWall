@@ -17,7 +17,7 @@ pip install -e .          # şimdilik depodan; PyPI'a Faz 1'de çıkacak
 redwall --version
 ```
 
-Hiçbir bağımlılığı yok, sadece Python 3.9+ gerekir. JavaScript/TypeScript kuralları için
+Hiçbir bağımlılığı yok, sadece Python 3.10+ gerekir. JavaScript/TypeScript kuralları için
 [Opengrep](https://github.com/opengrep/opengrep) (veya Semgrep CE) PATH'te olmalıdır; yoksa RedWall
 bunu raporda belirtir ve diğer taramalara devam eder.
 

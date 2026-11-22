@@ -27,7 +27,7 @@ def test_secrets_are_redacted_everywhere(tmp_path):
 
 def test_generic_password_needs_entropy_and_no_placeholder(tmp_path):
     findings = _scan(tmp_path, "app.py", "\n".join([
-        'password = "Xk9#mQ2$vL7!pR4z"',
+        'password = "Xk9#mQ2$vL7!pR4z"',  # redwall: ignore[RW-SECRET-GENERIC] (test data)
         'password = "changeme123"',
         'api_key = "your-api-key-here"',
         'password = "aaaaaaaaaaaa"',
