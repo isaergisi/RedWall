@@ -1,0 +1,21 @@
+# test name, category, real vulnerability, cwe, RedWall mini benchmark
+BenchmarkTest00001,sqli,true,89
+BenchmarkTest00002,sqli,true,89
+BenchmarkTest00003,sqli,true,89
+BenchmarkTest00004,sqli,false,89
+BenchmarkTest00005,sqli,false,89
+BenchmarkTest00006,sqli,false,89
+BenchmarkTest00007,cmdi,true,78
+BenchmarkTest00008,cmdi,true,78
+BenchmarkTest00009,cmdi,false,78
+BenchmarkTest00010,cmdi,false,78
+BenchmarkTest00011,pathtraver,true,22
+BenchmarkTest00012,pathtraver,true,22
+BenchmarkTest00013,pathtraver,false,22
+BenchmarkTest00014,pathtraver,false,22
+BenchmarkTest00015,codeinj,true,95
+BenchmarkTest00016,codeinj,false,95
+BenchmarkTest00017,deserialization,true,502
+BenchmarkTest00018,deserialization,false,502
+BenchmarkTest00019,sqli,false,89
+BenchmarkTest00020,cmdi,true,78

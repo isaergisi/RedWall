@@ -1,0 +1,137 @@
+# RedWall rules for JavaScript / TypeScript, run by Opengrep (or Semgrep CE).
+# Written from scratch for RedWall and released under the project's MIT license.
+# metadata.redwall_id is the stable rule id RedWall reports.
+rules:
+  - id: js-code-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Non-constant data is evaluated as code.
+    metadata:
+      redwall_id: RW-JS-CODEI
+      title: Code injection (eval / Function)
+      cwe: CWE-95
+      redwall_severity: high
+      remediation: Avoid eval and new Function; parse data with JSON.parse().
+    patterns:
+      - pattern-either:
+          - pattern: eval($X)
+          - pattern: new Function(..., $X)
+          - pattern: setTimeout($A + $X, ...)
+          - pattern: setTimeout(`...${$X}...`, ...)
+          - pattern: setInterval($A + $X, ...)
+          - pattern: setInterval(`...${$X}...`, ...)
+      - pattern-not: eval("...")
+      - pattern-not: new Function(..., "...")
+
+  - id: js-command-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: A shell command is built from non-constant data.
+    metadata:
+      redwall_id: RW-JS-CMDI
+      title: OS command injection
+      cwe: CWE-78
+      redwall_severity: high
+      remediation: Use execFile/spawn with an argument array instead of a shell string.
+    pattern-either:
+      - pattern: $CP.exec($A + $X, ...)
+      - pattern: $CP.execSync($A + $X, ...)
+      - pattern: $CP.exec(`...${$X}...`, ...)
+      - pattern: $CP.execSync(`...${$X}...`, ...)
+      - pattern: exec($A + $X, ...)
+      - pattern: execSync($A + $X, ...)
+      - pattern: exec(`...${$X}...`, ...)
+      - pattern: execSync(`...${$X}...`, ...)
+      - pattern: "$CP.spawn($CMD, $ARGS, {..., shell: true, ...})"
+
+  - id: js-sql-injection
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: A SQL query is built from non-constant data.
+    metadata:
+      redwall_id: RW-JS-SQLI
+      title: SQL injection
+      cwe: CWE-89
+      redwall_severity: high
+      remediation: Use placeholders, e.g. db.query("SELECT * FROM t WHERE id = ?", [id]).
+    patterns:
+      - pattern-either:
+          - pattern: $DB.$METHOD("..." + $X, ...)
+          - pattern: $DB.$METHOD(`...${$X}...`, ...)
+          - pattern: $DB.$METHOD("...".concat(...), ...)
+      - metavariable-regex:
+          metavariable: $METHOD
+          regex: ^(query|execute|raw|run|all|get|exec|prepare|\$queryRawUnsafe|\$executeRawUnsafe)$
+      - metavariable-regex:
+          metavariable: $DB
+          regex: (?i).*(db|sql|conn|connection|client|pool|knex|sequelize|prisma|database|pg|mysql|sqlite).*
+
+  - id: js-xss-sink
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: Non-constant data is written into the page as HTML.
+    metadata:
+      redwall_id: RW-JS-XSS
+      title: Cross-site scripting (DOM sink)
+      cwe: CWE-79
+      redwall_severity: medium
+      remediation: Use textContent, or sanitize with DOMPurify before inserting HTML.
+    patterns:
+      - pattern-either:
+          - pattern: $EL.innerHTML = $X
+          - pattern: $EL.outerHTML = $X
+          - pattern: $EL.insertAdjacentHTML($POS, $X)
+          - pattern: document.write($X)
+          - pattern: document.writeln($X)
+      - pattern-not: $EL.innerHTML = "..."
+      - pattern-not: $EL.outerHTML = "..."
+      - pattern-not: $EL.insertAdjacentHTML($POS, "...")
+      - pattern-not: document.write("...")
+      - pattern-not: document.writeln("...")
+      - pattern-not: $EL.innerHTML = DOMPurify.sanitize(...)
+
+  - id: js-react-dangerous-html
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: dangerouslySetInnerHTML is given non-constant data.
+    metadata:
+      redwall_id: RW-JS-XSS
+      title: Cross-site scripting (dangerouslySetInnerHTML)
+      cwe: CWE-79
+      redwall_severity: medium
+      remediation: Render the value as text, or sanitize it with DOMPurify first.
+    patterns:
+      - pattern: "{__html: $X}"
+      - pattern-not: "{__html: \"...\"}"
+      - pattern-not: "{__html: DOMPurify.sanitize(...)}"
+
+  - id: js-tls-disabled
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: TLS certificate verification is disabled.
+    metadata:
+      redwall_id: RW-JS-TLS
+      title: TLS certificate verification disabled
+      cwe: CWE-295
+      redwall_severity: medium
+      remediation: Remove rejectUnauthorized false and trust the right CA instead.
+    pattern-either:
+      - pattern: "{..., rejectUnauthorized: false, ...}"
+      - pattern: process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
+      - pattern: process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
+
+  - id: js-weak-hash
+    languages: [javascript, typescript]
+    severity: INFO
+    message: MD5 and SHA-1 are broken for security purposes.
+    metadata:
+      redwall_id: RW-JS-WEAKHASH
+      title: Weak hash algorithm
+      cwe: CWE-328
+      redwall_severity: low
+      remediation: Use sha256, or a password KDF such as scrypt or argon2 for passwords.
+    patterns:
+      - pattern: $CRYPTO.createHash("$ALG")
+      - metavariable-regex:
+          metavariable: $ALG
+          regex: (?i)^(md5|sha1)$

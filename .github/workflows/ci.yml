@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -e '.[dev]' semgrep
+      - run: pytest -q
+
+  self-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Scan RedWall with RedWall
+        run: redwall scan . --exclude tests/fixtures --exclude benchmarks --out-dir .redwall/results
+      - name: Mini benchmark
+        run: redwall bench benchmarks/mini/testcode --expected benchmarks/mini/expectedresults-mini.csv
+
+  owasp-benchmark:
+    # First real measurement (phase 0 gate). Informational: never blocks a PR.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: OWASP BenchmarkPython
+        run: |
+          benchmarks/owasp_python.sh .cache/BenchmarkPython | tee bench.txt
+          { echo '### OWASP BenchmarkPython'; echo '```'; cat bench.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
