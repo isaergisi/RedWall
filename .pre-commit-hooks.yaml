@@ -1,0 +1,6 @@
+- id: redwall
+  name: RedWall security scan
+  description: Fast, rule-only RedWall scan of the staged files (no LLM).
+  entry: redwall scan --fail-on high
+  language: python
+  types_or: [python, javascript, ts, tsx, jsx]
