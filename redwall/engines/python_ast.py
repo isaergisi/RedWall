@@ -139,6 +139,7 @@ RULES: Dict[str, Rule] = {r.id: r for r in _RULES}
 # --------------------------------------------------------------------------
 
 CONST, UNKNOWN, BUILT, TAINTED = 0, 1, 2, 3
+_LEVEL_NAMES = {CONST: "constant", UNKNOWN: "unknown", BUILT: "built", TAINTED: "tainted"}
 
 
 class _NoValue:
@@ -1742,6 +1743,11 @@ class _ModuleAnalyzer:
             engine=ENGINE,
             function=".".join(self.func_stack) or None,
             trace=trace,
+            context={
+                "sink": sink,
+                "flow": _LEVEL_NAMES.get(flow.level, "unknown") if flow is not None else "n/a",
+                "in_route": self._in_route(),
+            },
         )
 
     @staticmethod

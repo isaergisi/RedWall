@@ -17,7 +17,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .engines import default_engines
 from .engines.base import LANGUAGE_BY_SUFFIX, Engine, SourceFile
-from .models import Confidence, EngineRun, Finding, ScanResult, Severity
+from .models import Confidence, EngineRun, Finding, ScanResult, Severity, Status
 
 DEFAULT_EXCLUDED_DIRS = {
     ".git", ".hg", ".svn", "node_modules", "bower_components", "__pycache__", ".venv", "venv",
@@ -143,11 +143,11 @@ def scan(root: Path, targets: Optional[Iterable[Path]] = None, options: Optional
 
     # Filter, de-duplicate (same rule on the same line), suppress.
     unique: Dict[Tuple[str, str, int], Finding] = {}
-    suppressed = 0
+    filtered_keys = set()
     for f in findings:
-        if not _rule_selected(f.rule_id, options.rule_ids):
-            continue
-        if f.severity.rank < options.min_severity.rank or f.confidence.rank < options.min_confidence.rank:
+        if not _rule_selected(f.rule_id, options.rule_ids) or \
+                f.severity.rank < options.min_severity.rank or f.confidence.rank < options.min_confidence.rank:
+            filtered_keys.add((f.rule_id, f.path, f.line))
             continue
         key = (f.rule_id, f.path, f.line)
         prev = unique.get(key)
@@ -157,21 +157,30 @@ def scan(root: Path, targets: Optional[Iterable[Path]] = None, options: Optional
                 unique[key] = f
             continue
         unique[key] = f
+    # Filters the user asked for are counted (and the count is reported), never silent.
+    filtered = len(filtered_keys - set(unique))
     kept: List[Finding] = []
+    suppressed: List[Finding] = []
     for f in unique.values():
         if _suppressed(f, by_rel):
-            suppressed += 1
+            f.status = Status.SUPPRESSED
+            suppressed.append(f)
         else:
             kept.append(f)
+    # Fingerprints are assigned over both lists so suppressing a finding does not
+    # renumber its identical neighbours.
+    everything = sorted(kept + suppressed, key=Finding.sort_key)
+    _assign_fingerprints(everything)
     kept.sort(key=Finding.sort_key)
-    _assign_fingerprints(kept)
+    suppressed.sort(key=Finding.sort_key)
 
     return ScanResult(
         root=str(root),
         findings=kept,
         engines=runs,
         files_scanned=len(files),
-        suppressed=suppressed,
+        suppressed_findings=suppressed,
+        filtered=filtered,
         errors=sorted(set(errors)),
         duration_s=time.monotonic() - started,
     )

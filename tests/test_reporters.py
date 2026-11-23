@@ -19,7 +19,9 @@ def test_sarif_structure(result):
     rules = run["tool"]["driver"]["rules"]
     ids = [r["id"] for r in rules]
     assert len(ids) == len(set(ids))
-    assert len(run["results"]) == len(result.findings)
+    # Suppressed findings are reported too, marked with a SARIF in-source suppression.
+    assert len(run["results"]) == len(result.findings) + len(result.suppressed_findings)
+    assert sum(1 for r in run["results"] if r.get("suppressions")) == len(result.suppressed_findings) == 1
     for res in run["results"]:
         assert rules[res["ruleIndex"]]["id"] == res["ruleId"]
         assert res["level"] in ("error", "warning", "note")
@@ -35,7 +37,7 @@ def test_sarif_structure(result):
 
 def test_jsonl_one_finding_per_line(result):
     lines = render(result, "jsonl").splitlines()
-    assert len(lines) == len(result.findings)
+    assert len(lines) == len(result.findings) + len(result.suppressed_findings)
     first = json.loads(lines[0])
     assert {"fingerprint", "rule_id", "severity", "confidence", "status", "path", "line", "trace"} <= set(first)
     assert first["status"] == "candidate"
