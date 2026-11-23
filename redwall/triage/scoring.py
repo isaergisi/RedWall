@@ -70,6 +70,22 @@ _IMPACT_BY_SEVERITY = {
 }
 
 _EVIDENCE = {Confidence.HIGH: 30, Confidence.MEDIUM: 15, Confidence.LOW: 0}
+# For data-flow rules the evidence is how sure we are that attacker data reaches the sink,
+# which the Python engine records as the flow level of the value at the sink.
+_FLOW_EVIDENCE = {"traced": 30, "built": 15, "unknown": 0}
+
+
+def _evidence(f: Finding, kind: str) -> Tuple[int, str]:
+    flow = f.context.get("flow")
+    if kind in DATAFLOW_KINDS and flow is not None:
+        if f.trace and flow == "tainted":
+            code = "traced"
+        elif flow == "built":
+            code = "built"
+        else:
+            code = "unknown"  # unknown origin, or a dangerous call whose input was not traced
+        return _FLOW_EVIDENCE[code], code
+    return _EVIDENCE[f.confidence], f.confidence.value
 
 REMOTE, LOCAL, ROUTE, REPO, NONE = "remote", "local", "route", "repo", "none"
 _EXPOSURE = {REMOTE: 15, ROUTE: 5, REPO: 10, LOCAL: -10, NONE: 0}
@@ -135,7 +151,7 @@ def score(f: Finding, reason: Optional[Dict[str, str]] = None) -> Score:
     kind = kind_of(f)
     points, impact_class = _IMPACT_BY_KIND.get(kind, (_IMPACT_BY_SEVERITY[f.severity], "other"))
     factors = [ScoreFactor("impact", points, impact_class)]
-    factors.append(ScoreFactor("evidence", _EVIDENCE[f.confidence], f.confidence.value))
+    factors.append(ScoreFactor("evidence", *_evidence(f, kind)))
 
     if kind == "secret":
         exposure = REPO

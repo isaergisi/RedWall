@@ -51,17 +51,17 @@ _IMPACT = {
 
 _EVIDENCE = {
     "en": {
-        ("flow", "high"): "evidence: user input traced to the sink",
-        ("flow", "medium"): "evidence: sink receives a string built from non-constant parts",
-        ("flow", "low"): "evidence: sink receives a value of unknown origin",
+        ("flow", "traced"): "evidence: user input traced to the sink",
+        ("flow", "built"): "evidence: sink receives a string built from non-constant parts",
+        ("flow", "unknown"): "evidence: sink receives a value of unknown origin",
         ("plain", "high"): "evidence: exact pattern match",
         ("plain", "medium"): "evidence: likely pattern match",
         ("plain", "low"): "evidence: weak pattern match",
     },
     "tr": {
-        ("flow", "high"): "kanıt: kullanıcı girdisi sink'e kadar izlendi",
-        ("flow", "medium"): "kanıt: sink'e sabit olmayan parçalardan kurulmuş bir metin gidiyor",
-        ("flow", "low"): "kanıt: sink'e kaynağı bilinmeyen bir değer gidiyor",
+        ("flow", "traced"): "kanıt: kullanıcı girdisi sink'e kadar izlendi",
+        ("flow", "built"): "kanıt: sink'e sabit olmayan parçalardan kurulmuş bir metin gidiyor",
+        ("flow", "unknown"): "kanıt: sink'e kaynağı bilinmeyen bir değer gidiyor",
         ("plain", "high"): "kanıt: kesin kalıp eşleşmesi",
         ("plain", "medium"): "kanıt: olası kalıp eşleşmesi",
         ("plain", "low"): "kanıt: zayıf kalıp eşleşmesi",
@@ -232,7 +232,7 @@ def factor_texts(s: Score, f: Finding, lang: str) -> List[ScoreFactor]:
         if fac.key == "impact":
             text = _IMPACT[lang].get(fac.reason, _IMPACT[lang]["other"])
         elif fac.key == "evidence":
-            text = _EVIDENCE[lang][("flow" if s.kind in DATAFLOW_KINDS else "plain", fac.reason)]
+            text = _EVIDENCE[lang][("flow" if fac.reason in ("traced", "built", "unknown") else "plain", fac.reason)]
         elif fac.key == "exposure":
             text = _EXPOSURE[lang][fac.reason]
         elif fac.key == "context":

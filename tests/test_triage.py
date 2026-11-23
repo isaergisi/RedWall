@@ -221,18 +221,20 @@ def test_llm_failures_are_fail_open(app_result):
 
 
 def test_llm_never_receives_secrets(tmp_path):
-    (tmp_path / "a.py").write_text(textwrap.dedent('''
+    aws, pwd = "AKIA" + "IOSFODNN7EXAMPLE", "hunter2-" + "very-secret-value"  # split: keep the self-scan clean
+    (tmp_path / "a.py").write_text(textwrap.dedent(f'''
         import os
         from flask import request
-        AWS = "AKIAIOSFODNN7EXAMPLE"
+        AWS = "{aws}"
         def f():
-            password = "hunter2-very-secret-value"
+            password = "{pwd}"
             os.system(request.args["c"])
     '''))
     res = prioritize(scan(tmp_path, options=ScanOptions(engines=["python-ast", "secrets"])))
     transport, calls = _fake('{"exploitability": "possible", "evidence_lines": []}')
     review(res, _cfg(), transport=transport)
-    assert calls and all("AKIAIOSFODNN7EXAMPLE" not in c and "hunter2-very-secret-value" not in c for c in calls)
+    assert any(f.rule_id.startswith("RW-SECRET") for f in res.findings)
+    assert calls and all(aws not in c and pwd not in c for c in calls)
     assert all(f.triage.llm is None for f in res.findings if f.rule_id.startswith("RW-SECRET"))
 
 
@@ -299,3 +301,21 @@ def test_finding_model_roundtrip():
                 trace=[TraceStep(1, "user input enters via `request.args`"), TraceStep(3, "reaches sink `x`")])
     assert scoring.source_kind(f) == scoring.REMOTE
     assert "triage" not in f.to_dict()
+
+
+def test_untraced_dangerous_call_ranks_below_traced_flows(tmp_path):
+    (tmp_path / "a.py").write_text(textwrap.dedent('''
+        import pickle, sqlite3
+        from flask import Flask, request, session
+        app = Flask(__name__)
+        @app.route("/a")
+        def a():
+            obj = pickle.loads(session["blob"])
+            uid = request.args["id"]
+            sqlite3.connect("db").execute("SELECT * FROM u WHERE id = " + uid)
+    '''))
+    res = prioritize(scan(tmp_path, options=ScanOptions(engines=["python-ast"])))
+    deser = next(f for f in res.findings if f.rule_id == "RW-PY-DESER").triage
+    sqli = next(f for f in res.findings if f.rule_id == "RW-PY-SQLI").triage
+    assert sqli.rank < deser.rank and deser.tier == "P3"
+    assert any("unknown origin" in x.reason for x in deser.factors)
