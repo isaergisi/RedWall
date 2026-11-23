@@ -47,7 +47,7 @@ def calc():
 def load():
     obj = pickle.loads(request.data)  # expect: RW-PY-DESER
     cfg = yaml.load(open("config.yml"))  # expect: RW-PY-DESER
-    return str(obj) + str(cfg)
+    return str(obj) + str(cfg)  # expect: RW-PY-XSS-RESPONSE
 
 
 @app.route("/hello")
