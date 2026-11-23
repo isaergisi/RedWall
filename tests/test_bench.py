@@ -15,7 +15,7 @@ def test_mini_benchmark_score_does_not_regress():
     report = run_benchmark(MINI / "testcode", MINI / "expectedresults-mini.csv")
     assert report.tests == 20 and not report.missing_files
     cats = {c.category: c for c in report.categories}
-    # Documented known misses: one sqli guard false positive, one `sh -c` list miss.
-    assert (cats["sqli"].tp, cats["sqli"].fp) == (3, 1)
-    assert (cats["cmdi"].tp, cats["cmdi"].fn) == (2, 1)
-    assert report.avg_score >= 0.85
+    # The allow-list guard (00019) and the `sh -c` list (00020) are handled since phase 1.
+    assert (cats["sqli"].tp, cats["sqli"].fp) == (3, 0)
+    assert (cats["cmdi"].tp, cats["cmdi"].fn) == (3, 0)
+    assert report.avg_score == 1.0

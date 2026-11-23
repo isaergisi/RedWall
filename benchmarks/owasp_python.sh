@@ -7,7 +7,7 @@ if [ ! -d "$DIR/.git" ]; then
   git clone --depth 1 https://github.com/OWASP-Benchmark/BenchmarkPython.git "$DIR"
 fi
 CSV="$(ls "$DIR"/expectedresults-*.csv | head -n 1)"
-CODE="$DIR/testcode"
-[ -d "$CODE" ] || CODE="$DIR"
 echo "Expected results: $CSV"
-redwall bench "$CODE" --expected "$CSV" "${@:2}"
+# Scan the whole application so helper modules are summarised too; test files
+# are matched to the CSV by name.
+redwall bench "$DIR" --expected "$CSV" "${@:2}"
