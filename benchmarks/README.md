@@ -48,3 +48,21 @@ checked for lost findings and noise before the change was merged. The
 remaining false positives come from `request.path.split("/")[1]`, which is the
 constant route segment `benchmark` in this suite; RedWall treats it as an
 unknown value on purpose.
+
+## Held-out real-world projects (phase 2)
+
+`realworld/cves.json` lists 17 published vulnerabilities (7 CVEs, 2 more fixed in the same Gerapy security
+release, 8 GitHub Security Lab advisories for Archery) in 8 projects that were never looked at while the phase
+0/1 rules were written. `realworld/run.py` checks out each vulnerable (and, when there is one, fixed) release,
+scans it with one or more RedWall source trees and optionally Bandit, and reports whether a finding with the
+right CWE lands on the ground-truth sink, with its confidence and priority rank:
+
+```bash
+python benchmarks/realworld/run.py --bandit \
+    --redwall-src faz1=/path/to/old/checkout --redwall-src current=.
+python benchmarks/realworld/sample.py --cache .cache/realworld --n 40   # random P1/P2 sample to label by hand
+```
+
+`realworld/results/` holds the numbers and the hand labels behind the phase 2 report
+(`docs/arastirma/faz2-genelleme-raporu.md`). Four generic engine bugs were fixed after this check, so the set is
+no longer held-out for the current rules: the next generalisation check needs new projects.
