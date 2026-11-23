@@ -85,8 +85,8 @@ def test_xpath_injection_and_variables(tmp_path):
             uid = request.args["uid"]
             root.xpath(f"//user[@id='{uid}']")
             root.xpath("//user[@id=$uid]", uid=uid)
-            root.xpath(f"//user[@id='{uid.replace(chr(39), '&apos;')}']")
-            root.xpath(f"//user[@id='{uid.replace(\"'\", '&apos;')}']")
+            root.xpath("//user[@id='%s']" % uid.replace(chr(39), "&apos;"))
+            root.xpath("//user[@id='%s']" % uid.replace("'", "&apos;"))
     """)
     assert [(f.rule_id, f.line) for f in findings] == [("RW-PY-XPATHI", 6), ("RW-PY-XPATHI", 8)]
 
