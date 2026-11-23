@@ -1,0 +1,862 @@
+{
+  "projects": {
+    "gerapy": {
+      "faz0": {
+        "findings": 11,
+        "seconds": 0.1,
+        "by_priority": null
+      },
+      "faz1": {
+        "findings": 13,
+        "seconds": 0.2,
+        "by_priority": null
+      },
+      "faz2": {
+        "findings": 14,
+        "seconds": 0.2,
+        "by_priority": {
+          "P1": 11,
+          "P2": 2,
+          "P3": 1,
+          "P4": 0
+        }
+      },
+      "bandit": {
+        "findings": 11,
+        "seconds": null,
+        "by_priority": null
+      }
+    },
+    "pgadmin": {
+      "faz0": {
+        "findings": 540,
+        "seconds": 2.2,
+        "by_priority": null
+      },
+      "faz1": {
+        "findings": 599,
+        "seconds": 5.0,
+        "by_priority": null
+      },
+      "faz2": {
+        "findings": 556,
+        "seconds": 5.1,
+        "by_priority": {
+          "P1": 8,
+          "P2": 11,
+          "P3": 39,
+          "P4": 498
+        }
+      },
+      "bandit": {
+        "findings": 630,
+        "seconds": null,
+        "by_priority": null
+      }
+    },
+    "pyload": {
+      "faz0": {
+        "findings": 13,
+        "seconds": 0.7,
+        "by_priority": null
+      },
+      "faz1": {
+        "findings": 37,
+        "seconds": 2.5,
+        "by_priority": null
+      },
+      "faz2": {
+        "findings": 35,
+        "seconds": 2.4,
+        "by_priority": {
+          "P1": 6,
+          "P2": 6,
+          "P3": 1,
+          "P4": 22
+        }
+      },
+      "bandit": {
+        "findings": 143,
+        "seconds": null,
+        "by_priority": null
+      }
+    },
+    "calibreweb": {
+      "faz0": {
+        "findings": 8,
+        "seconds": 0.4,
+        "by_priority": null
+      },
+      "faz1": {
+        "findings": 35,
+        "seconds": 1.1,
+        "by_priority": null
+      },
+      "faz2": {
+        "findings": 22,
+        "seconds": 1.1,
+        "by_priority": {
+          "P1": 7,
+          "P2": 11,
+          "P3": 1,
+          "P4": 3
+        }
+      },
+      "bandit": {
+        "findings": 22,
+        "seconds": null,
+        "by_priority": null
+      }
+    },
+    "openwebui": {
+      "faz0": {
+        "findings": 28,
+        "seconds": 0.2,
+        "by_priority": null
+      },
+      "faz1": {
+        "findings": 31,
+        "seconds": 0.6,
+        "by_priority": null
+      },
+      "faz2": {
+        "findings": 35,
+        "seconds": 0.6,
+        "by_priority": {
+          "P1": 22,
+          "P2": 1,
+          "P3": 0,
+          "P4": 12
+        }
+      },
+      "bandit": {
+        "findings": 273,
+        "seconds": null,
+        "by_priority": null
+      }
+    },
+    "langflow": {
+      "faz0": {
+        "findings": 25,
+        "seconds": 0.8,
+        "by_priority": null
+      },
+      "faz1": {
+        "findings": 32,
+        "seconds": 2.2,
+        "by_priority": null
+      },
+      "faz2": {
+        "findings": 32,
+        "seconds": 2.2,
+        "by_priority": {
+          "P1": 1,
+          "P2": 8,
+          "P3": 22,
+          "P4": 1
+        }
+      },
+      "bandit": {
+        "findings": 44,
+        "seconds": null,
+        "by_priority": null
+      }
+    },
+    "ray": {
+      "faz0": {
+        "findings": 11,
+        "seconds": 0.3,
+        "by_priority": null
+      },
+      "faz1": {
+        "findings": 67,
+        "seconds": 0.8,
+        "by_priority": null
+      },
+      "faz2": {
+        "findings": 28,
+        "seconds": 0.8,
+        "by_priority": {
+          "P1": 0,
+          "P2": 7,
+          "P3": 4,
+          "P4": 17
+        }
+      },
+      "bandit": {
+        "findings": 1033,
+        "seconds": null,
+        "by_priority": null
+      }
+    },
+    "archery": {
+      "faz0": {
+        "findings": 32,
+        "seconds": 0.5,
+        "by_priority": null
+      },
+      "faz1": {
+        "findings": 34,
+        "seconds": 0.9,
+        "by_priority": null
+      },
+      "faz2": {
+        "findings": 31,
+        "seconds": 1.0,
+        "by_priority": {
+          "P1": 10,
+          "P2": 3,
+          "P3": 17,
+          "P4": 1
+        }
+      },
+      "bandit": {
+        "findings": 133,
+        "seconds": null,
+        "by_priority": null
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "gerapy-configure",
+      "project": "gerapy",
+      "advisory": "CVE-2021-43857",
+      "cwe": "78",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 259,
+          "confidence": "medium",
+          "of": 11,
+          "fixed_release_still_flagged": false
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 259,
+          "confidence": "medium",
+          "of": 13,
+          "fixed_release_still_flagged": false
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 259,
+          "confidence": "medium",
+          "of": 14,
+          "rank": 13,
+          "tier": "P2",
+          "score": 65,
+          "fixed_release_still_flagged": false
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B602",
+          "line": 259,
+          "confidence": "high",
+          "of": 11
+        }
+      }
+    },
+    {
+      "id": "gerapy-clone",
+      "project": "gerapy",
+      "advisory": "fixed with CVE-2021-43857 in 0.9.8",
+      "cwe": "78",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 339,
+          "confidence": "high",
+          "of": 11,
+          "fixed_release_still_flagged": false
+        },
+        "faz1": {
+          "detected": false,
+          "fixed_release_still_flagged": null
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 339,
+          "confidence": "high",
+          "of": 14,
+          "rank": 1,
+          "tier": "P1",
+          "score": 95,
+          "fixed_release_still_flagged": false
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B602",
+          "line": 339,
+          "confidence": "high",
+          "of": 11
+        }
+      }
+    },
+    {
+      "id": "gerapy-parse",
+      "project": "gerapy",
+      "advisory": "fixed with CVE-2021-43857 in 0.9.8",
+      "cwe": "78",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 539,
+          "confidence": "high",
+          "of": 11,
+          "fixed_release_still_flagged": false
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 539,
+          "confidence": "high",
+          "of": 13,
+          "fixed_release_still_flagged": false
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 539,
+          "confidence": "high",
+          "of": 14,
+          "rank": 2,
+          "tier": "P1",
+          "score": 95,
+          "fixed_release_still_flagged": false
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B602",
+          "line": 539,
+          "confidence": "high",
+          "of": 11
+        }
+      }
+    },
+    {
+      "id": "pgadmin-binary-path",
+      "project": "pgadmin",
+      "advisory": "CVE-2023-5002",
+      "cwe": "78",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 273,
+          "confidence": "high",
+          "of": 540,
+          "fixed_release_still_flagged": false
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 273,
+          "confidence": "high",
+          "of": 599,
+          "fixed_release_still_flagged": false
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 273,
+          "confidence": "high",
+          "of": 556,
+          "rank": 1,
+          "tier": "P1",
+          "score": 95,
+          "fixed_release_still_flagged": false
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B605",
+          "line": 273,
+          "confidence": "high",
+          "of": 630
+        }
+      }
+    },
+    {
+      "id": "pyload-cnl-eval-js",
+      "project": "pyload",
+      "advisory": "CVE-2023-0297",
+      "cwe": "94",
+      "tools": {
+        "faz0": {
+          "detected": false
+        },
+        "faz1": {
+          "detected": false
+        },
+        "faz2": {
+          "detected": false
+        },
+        "bandit": {
+          "detected": false
+        }
+      }
+    },
+    {
+      "id": "calibreweb-cover-ssrf",
+      "project": "calibreweb",
+      "advisory": "CVE-2022-0939",
+      "cwe": "918",
+      "tools": {
+        "faz0": {
+          "detected": false,
+          "fixed_release_still_flagged": null
+        },
+        "faz1": {
+          "detected": false,
+          "fixed_release_still_flagged": null
+        },
+        "faz2": {
+          "detected": false,
+          "fixed_release_still_flagged": null
+        },
+        "bandit": {
+          "detected": false
+        }
+      }
+    },
+    {
+      "id": "openwebui-model-upload",
+      "project": "openwebui",
+      "advisory": "CVE-2024-7034 (rejected by vendor/CNA: admin-only endpoint)",
+      "cwe": "22",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-PATH",
+          "line": 1172,
+          "confidence": "high",
+          "of": 28
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-PATH",
+          "line": 1172,
+          "confidence": "high",
+          "of": 31
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-PATH",
+          "line": 1172,
+          "confidence": "high",
+          "of": 35,
+          "rank": 1,
+          "tier": "P1",
+          "score": 85
+        },
+        "bandit": {
+          "detected": false
+        }
+      }
+    },
+    {
+      "id": "langflow-validate-exec",
+      "project": "langflow",
+      "advisory": "CVE-2025-3248",
+      "cwe": "94",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CODEI",
+          "line": 57,
+          "confidence": "low",
+          "of": 25,
+          "fixed_release_still_flagged": true
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CODEI",
+          "line": 55,
+          "confidence": "low",
+          "of": 32,
+          "fixed_release_still_flagged": true
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CODEI",
+          "line": 55,
+          "confidence": "low",
+          "of": 32,
+          "rank": 17,
+          "tier": "P3",
+          "score": 50,
+          "fixed_release_still_flagged": true
+        },
+        "bandit": {
+          "detected": false
+        }
+      }
+    },
+    {
+      "id": "ray-cpu-profile",
+      "project": "ray",
+      "advisory": "CVE-2023-6019",
+      "cwe": "78",
+      "tools": {
+        "faz0": {
+          "detected": false,
+          "fixed_release_still_flagged": null
+        },
+        "faz1": {
+          "detected": false,
+          "fixed_release_still_flagged": null
+        },
+        "faz2": {
+          "detected": false,
+          "fixed_release_still_flagged": null
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B604",
+          "line": 108,
+          "confidence": "low",
+          "of": 1033
+        }
+      }
+    },
+    {
+      "id": "archery-101-describe",
+      "project": "archery",
+      "advisory": "GHSL-2022-101",
+      "cwe": "89",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 182,
+          "confidence": "medium",
+          "of": 32
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 182,
+          "confidence": "medium",
+          "of": 34
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 182,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 30,
+          "tier": "P3",
+          "score": 57
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B608",
+          "line": 212,
+          "confidence": "low",
+          "of": 133
+        }
+      }
+    },
+    {
+      "id": "archery-102-execute-check",
+      "project": "archery",
+      "advisory": "GHSL-2022-102",
+      "cwe": "89",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 640,
+          "confidence": "medium",
+          "of": 32
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 640,
+          "confidence": "medium",
+          "of": 34
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 640,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 19,
+          "tier": "P3",
+          "score": 57
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B608",
+          "line": 66,
+          "confidence": "low",
+          "of": 133
+        }
+      }
+    },
+    {
+      "id": "archery-103-explain-check",
+      "project": "archery",
+      "advisory": "GHSL-2022-103",
+      "cwe": "89",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 574,
+          "confidence": "medium",
+          "of": 32
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 574,
+          "confidence": "medium",
+          "of": 34
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 574,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 18,
+          "tier": "P3",
+          "score": 57
+        },
+        "bandit": {
+          "detected": false
+        }
+      }
+    },
+    {
+      "id": "archery-104-param-edit",
+      "project": "archery",
+      "advisory": "GHSL-2022-104",
+      "cwe": "89",
+      "tools": {
+        "faz0": {
+          "detected": false
+        },
+        "faz1": {
+          "detected": false
+        },
+        "faz2": {
+          "detected": false
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B608",
+          "line": 543,
+          "confidence": "low",
+          "of": 133
+        }
+      }
+    },
+    {
+      "id": "archery-105-table-list",
+      "project": "archery",
+      "advisory": "GHSL-2022-105",
+      "cwe": "89",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 32
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 34
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 16,
+          "tier": "P3",
+          "score": 57
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B608",
+          "line": 63,
+          "confidence": "low",
+          "of": 133
+        }
+      }
+    },
+    {
+      "id": "archery-106-table-info",
+      "project": "archery",
+      "advisory": "GHSL-2022-106",
+      "cwe": "89",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 32
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 34
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 16,
+          "tier": "P3",
+          "score": 57
+        },
+        "bandit": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "B608",
+          "line": 82,
+          "confidence": "low",
+          "of": 133
+        }
+      }
+    },
+    {
+      "id": "archery-107-sqltuning",
+      "project": "archery",
+      "advisory": "GHSL-2022-107",
+      "cwe": "89",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 1347,
+          "confidence": "medium",
+          "of": 32
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 1347,
+          "confidence": "medium",
+          "of": 34
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 1347,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 26,
+          "tier": "P3",
+          "score": 57
+        },
+        "bandit": {
+          "detected": false
+        }
+      }
+    },
+    {
+      "id": "archery-108-explain",
+      "project": "archery",
+      "advisory": "GHSL-2022-108",
+      "cwe": "89",
+      "tools": {
+        "faz0": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 32
+        },
+        "faz1": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 34
+        },
+        "faz2": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 16,
+          "tier": "P3",
+          "score": 57
+        },
+        "bandit": {
+          "detected": false
+        }
+      }
+    }
+  ]
+}

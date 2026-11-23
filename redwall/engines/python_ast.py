@@ -139,6 +139,7 @@ RULES: Dict[str, Rule] = {r.id: r for r in _RULES}
 # --------------------------------------------------------------------------
 
 CONST, UNKNOWN, BUILT, TAINTED = 0, 1, 2, 3
+_LEVEL_NAMES = {CONST: "constant", UNKNOWN: "unknown", BUILT: "built", TAINTED: "tainted"}
 
 
 class _NoValue:
@@ -162,7 +163,7 @@ class Flow:
     value: Any = NOVALUE                       # known constant (level CONST only)
     elems: Optional[Tuple["Flow", ...]] = None  # list/tuple contents, by index
     keys: Optional[Tuple[Tuple[Any, "Flow"], ...]] = None  # dict / ConfigParser contents
-    safe_for: FrozenSet[str] = frozenset()     # sink kinds this tainted value is cleared for
+    safe_for: FrozenSet[str] = frozenset()     # sink kinds this (non-constant) value is cleared for
     tags: FrozenSet[str] = frozenset()         # object facts, e.g. "xxe-parser"
     origin: FrozenSet[str] = frozenset()       # variables this value was derived from
 
@@ -171,7 +172,7 @@ class Flow:
 
     def for_kind(self, kind: str) -> "Flow":
         """The flow as seen by a sink of ``kind`` (cleared taint looks constant)."""
-        if self.level == TAINTED and self.safe(kind):
+        if self.level != CONST and self.safe(kind):
             return _CONST
         return self
 
@@ -540,11 +541,21 @@ _TYPED_ROUTE_PARAM = re.compile(r"<(?:int|float|uuid)(?:\([^)]*\))?:(\w+)>")
 _NON_PATH_KINDS = ("xss", "sqli", "cmdi", "codeinj", "ldap", "xpathi", "redirect", "ssrf", "trustbound", "deser", "ssti")
 _NORMALISERS = {"realpath", "abspath", "normpath", "resolve", "absolute"}
 
-_GOOD_CALLS = {
-    "startswith", "endswith", "isdigit", "isdecimal", "isnumeric", "isalpha", "isalnum",
-    "isidentifier", "isascii", "fullmatch", "match", "is_relative_to",
-    "url_has_allowed_host_and_scheme", "is_safe_url", "is_valid", "validate", "isinstance",
+# Validation calls that clear a value on the branch where they returned True, and for which
+# sink kinds. Prefix/suffix checks (startswith/endswith) are deliberately absent: "http://x; id"
+# starts with "http" and "../../a.py" ends with ".py", so they prove nothing about injection.
+_ALL_BUT_URLS = frozenset({"xss", "sqli", "cmdi", "codeinj", "ldap", "xpathi", "trustbound", "deser", "ssti", "path"})
+_GOOD_CALLS: Dict[str, FrozenSet[str]] = {
+    **{n: frozenset({kb.ALL}) for n in ("isdigit", "isdecimal", "isnumeric")},
+    # "localhost" is alphanumeric: these do not make a host name or URL safe.
+    **{n: _ALL_BUT_URLS for n in ("isalpha", "isalnum", "isidentifier")},
+    "url_has_allowed_host_and_scheme": frozenset({"redirect", "ssrf"}),
+    "is_safe_url": frozenset({"redirect", "ssrf"}),
+    "is_valid": frozenset({kb.ALL}),  # e.g. Django form.is_valid()
+    "validate": frozenset({kb.ALL}),
 }
+# Anchored at the end and without a catch-all class: re.match/fullmatch with such a pattern is an allow-list.
+_PERMISSIVE_REGEX = re.compile(r"\.\*|\.\+|\\S|\[\^")
 
 
 # --------------------------------------------------------------------------
@@ -1608,6 +1619,9 @@ class _ModuleAnalyzer:
             inner = self._polarity(test.operand)
             return None if inner is None else (not inner[0], inner[1])
         if isinstance(test, ast.BoolOp):
+            literal = self._quoted_literal_check(test)
+            if literal is not None:
+                return False, literal
             parts = [self._polarity(v) for v in test.values]
             if any(p is None for p in parts):
                 return None
@@ -1643,13 +1657,60 @@ class _ModuleAnalyzer:
             last = test.func.attr if isinstance(test.func, ast.Attribute) else (_dotted(test.func) or "")
             if last in ("startswith", "is_relative_to", "commonpath"):
                 # A prefix check only contains a path once it has been normalised
-                # (realpath/abspath/resolve); otherwise "base/../../etc" passes.
+                # (realpath/abspath/resolve); otherwise "base/../../etc" passes. It says
+                # nothing about other sink kinds.
                 recv = test.func.value if isinstance(test.func, ast.Attribute) else None
                 normalised = recv is not None and self._normalised(recv)
-                return True, ({kb.ALL} if normalised else set(_NON_PATH_KINDS))
-            if last in _GOOD_CALLS and last != "isinstance":
-                return True, {kb.ALL}
+                return (True, {"path"}) if normalised else None
+            if last in ("match", "fullmatch"):
+                pattern = test.args[0] if test.args else None
+                if isinstance(test.func, ast.Attribute) and not (isinstance(test.func.value, ast.Name)
+                                                                 and test.func.value.id == "re"):
+                    return None  # compiled.match(x): pattern not visible here
+                if not (isinstance(pattern, ast.Constant) and isinstance(pattern.value, str)):
+                    return None
+                text = pattern.value
+                anchored = last == "fullmatch" or text.endswith("$") or text.endswith("\\Z")
+                if anchored and not _PERMISSIVE_REGEX.search(text):
+                    return True, set(_ALL_BUT_URLS)
+                return None
+            if last in _GOOD_CALLS:
+                return True, set(_GOOD_CALLS[last])
         return None
+
+    @staticmethod
+    def _quoted_literal_check(test: ast.BoolOp) -> Optional[Set[str]]:
+        """``not x.startswith(Q) or not x.endswith(Q) or Q in x[1:-1]`` (rejected when true).
+
+        Passing it means ``x`` is one quoted string literal with no inner quote of that kind:
+        safe to eval/exec as a literal, and with single quotes also inside a POSIX shell
+        command (nothing expands inside '...'). It is not treated as SQL-safe (MySQL lets a
+        backslash escape the closing quote).
+        """
+        if not isinstance(test.op, ast.Or) or len(test.values) != 3:
+            return None
+        seen: Dict[str, Set[str]] = {}
+        for v in test.values:
+            if isinstance(v, ast.UnaryOp) and isinstance(v.op, ast.Not) and isinstance(v.operand, ast.Call):
+                call = v.operand
+                if isinstance(call.func, ast.Attribute) and call.func.attr in ("startswith", "endswith") \
+                        and isinstance(call.func.value, ast.Name) and len(call.args) == 1 \
+                        and isinstance(call.args[0], ast.Constant) and call.args[0].value in ("'", '"'):
+                    seen.setdefault(call.func.attr, set()).add(f"{call.func.value.id}{call.args[0].value}")
+                    continue
+            if isinstance(v, ast.Compare) and len(v.ops) == 1 and isinstance(v.ops[0], ast.In) \
+                    and isinstance(v.left, ast.Constant) and v.left.value in ("'", '"') \
+                    and isinstance(v.comparators[0], ast.Subscript) \
+                    and isinstance(v.comparators[0].value, ast.Name) \
+                    and ast.unparse(v.comparators[0].slice).replace(" ", "") == "1:-1":
+                seen.setdefault("inner", set()).add(f"{v.comparators[0].value.id}{v.left.value}")
+                continue
+            return None
+        common = seen.get("startswith", set()) & seen.get("endswith", set()) & seen.get("inner", set())
+        if len(common) != 1:
+            return None
+        quote = next(iter(common))[-1]
+        return {"codeinj", "cmdi"} if quote == "'" else {"codeinj"}
 
     def _normalised(self, node: ast.expr) -> bool:
         """Was the checked path made absolute and resolved (no ``..`` left)?"""
@@ -1703,6 +1764,8 @@ class _ModuleAnalyzer:
                 scope[name] = replace(flow, safe_for=flow.safe_for | kinds)
             elif kb.ALL in kinds and flow.level in (UNKNOWN, BUILT):
                 scope[name] = replace(flow, level=CONST)
+            elif flow.level in (UNKNOWN, BUILT):
+                scope[name] = replace(flow, safe_for=flow.safe_for | kinds)
 
     # -- sink checks -------------------------------------------------------
 
@@ -1742,6 +1805,11 @@ class _ModuleAnalyzer:
             engine=ENGINE,
             function=".".join(self.func_stack) or None,
             trace=trace,
+            context={
+                "sink": sink,
+                "flow": _LEVEL_NAMES.get(flow.level, "unknown") if flow is not None else "n/a",
+                "in_route": self._in_route(),
+            },
         )
 
     @staticmethod
@@ -1764,6 +1832,18 @@ class _ModuleAnalyzer:
             ret = self.flow(node, scope)
         if isinstance(node, (ast.Dict, ast.List)) or ret.keys is not None:
             return  # serialised as JSON
+        if isinstance(node, ast.Await):
+            return  # an awaited handler/helper result is a response object, not an HTML string
+        if isinstance(node, ast.Call):
+            # The result of an arbitrary call (make_json_response(), render_books_list(),
+            # aiohttp Response(text=...)) is a response object or a rendered template far more
+            # often than a raw HTML string. Only string building and the known HTML response
+            # constructors are treated as the body.
+            name = self.resolve(node.func) or ""
+            method = node.func.attr if isinstance(node.func, ast.Attribute) else ""
+            if not (name in kb.RESPONSE_FUNCS or name in ("make_response", "str")
+                    or method == "make_response" or method in kb.STRING_BUILD_METHODS):
+                return
         f = ret.for_kind("xss")
         if f.level == TAINTED:
             self._report("RW-PY-XSS-RESPONSE", stmt, f, "HTTP response",
@@ -1875,7 +1955,7 @@ class _ModuleAnalyzer:
                 self._report("RW-PY-PATH", call, f, f"{name}()", f"File path passed to `{name}()` comes from user input.")
             return
         if method in kb.PATH_METHODS and isinstance(call.func, ast.Attribute) \
-                and not self._is_module_ref(call.func, scope):
+                and not self._is_module_ref(call.func, scope) and self._may_be_path(call.func.value):
             recv = self.flow(call.func.value, scope)
             if recv.elems is None and recv.keys is None:
                 f = recv.for_kind("path")
@@ -1981,6 +2061,20 @@ class _ModuleAnalyzer:
         if _is_false(secure) or (isinstance(secure, ast.Constant) and secure.value in (0, None)):
             self._report("RW-PY-COOKIE", call, None, short,
                          f"`{short}(secure=False)` lets the cookie travel over plain HTTP.", Confidence.HIGH)
+
+    _PATH_RETURNING = frozenset({"Path", "PurePath", "PosixPath", "WindowsPath", "resolve", "absolute",
+                                 "joinpath", "with_name", "with_suffix", "with_stem", "expanduser", "parent"})
+
+    def _may_be_path(self, recv: ast.expr) -> bool:
+        """``x.exists()`` is a file-system call only if ``x`` can be a path object.
+
+        A receiver produced by an arbitrary call (``Model.objects.filter(...).exists()``) is
+        not assumed to be one; names, attributes and pathlib constructors/methods are.
+        """
+        if isinstance(recv, ast.Call):
+            last = recv.func.attr if isinstance(recv.func, ast.Attribute) else (_dotted(recv.func) or "")
+            return last.rsplit(".", 1)[-1] in self._PATH_RETURNING
+        return True
 
     def _check_xxe(self, call: ast.Call, name: str, method: str, scope: Scope) -> bool:
         parser_flows = [self.flow(a, scope) for a in call.args] + [self.flow(k.value, scope) for k in call.keywords]

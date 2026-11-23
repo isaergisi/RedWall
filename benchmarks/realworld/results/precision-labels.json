@@ -1,0 +1,1212 @@
+{
+ "criteria": {
+  "TP": "attacker-controlled data reaches the sink and gives more than the feature intends",
+  "BY_DESIGN": "the flow is real but is the intended capability of an authorised user (admin file browser, SQL client, local CLI, admin who can already run code)",
+  "FP": "the claim is wrong: no attacker-controlled flow, wrong sink semantics, or validation RedWall cannot see"
+ },
+ "sample_1": {
+  "seed": 20261123,
+  "pool_size": 238,
+  "sample": [
+   {
+    "project": "archery",
+    "path": "sql/instance_account.py",
+    "line": 130,
+    "rule_id": "RW-PY-SQLI",
+    "tier": "P1",
+    "score": 87,
+    "confidence": "high",
+    "snippet": "exec_result = engine.execute(db_name=\"mysql\", sql=create_user_cmd)",
+    "trace": [
+     "user input enters via `request.POST`",
+     "stored in `user`",
+     "stored in `user`",
+     "stored in `create_user_cmd`",
+     "stored in `create_user_cmd`",
+     "reaches sink `engine.execute()`"
+    ],
+    "label": "TP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "CREATE USER statement built from POST user/host/password; runs as Archery's privileged DB account outside the audit workflow"
+   },
+   {
+    "project": "archery",
+    "path": "sql/slowlog.py",
+    "line": 41,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "if AliyunRdsConfig.objects.filter(instance=instance_info, is_enable=True).exists():",
+    "trace": [
+     "user input enters via `request.POST`",
+     "stored in `instance_name`",
+     "stored in `instance_info`",
+     "reaches sink `.exists()`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "Django QuerySet.exists(), not a file-system call"
+   },
+   {
+    "project": "archery",
+    "path": "sql/slowlog.py",
+    "line": 127,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "if AliyunRdsConfig.objects.filter(instance=instance_info, is_enable=True).exists():",
+    "trace": [
+     "user input enters via `request.POST`",
+     "stored in `instance_name`",
+     "stored in `instance_info`",
+     "reaches sink `.exists()`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "Django QuerySet.exists(), not a file-system call"
+   },
+   {
+    "project": "archery",
+    "path": "sql/sql_workflow.py",
+    "line": 443,
+    "rule_id": "RW-PY-OPENREDIRECT",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "high",
+    "snippet": "return HttpResponseRedirect(reverse(\"sql:detail\", args=(workflow_id,)))",
+    "trace": [
+     "user input enters via `request.POST`",
+     "stored in `workflow_id`",
+     "reaches sink `django.http.HttpResponseRedirect()`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P2",
+    "reason": "redirect target is reverse('sql:detail'), an internal URL"
+   },
+   {
+    "project": "archery",
+    "path": "sql/views.py",
+    "line": 293,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "response = FileResponse(open(file_name, \"rb\"))",
+    "trace": [
+     "user input enters via `request.GET`",
+     "stored in `workflow_id`",
+     "stored in `file_name`",
+     "reaches sink `open()`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "workflow_id is checked by can_rollback() and an ORM lookup first"
+   },
+   {
+    "project": "calibreweb",
+    "path": "admin.py",
+    "line": 959,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "if os.path.isdir(path):",
+    "trace": [
+     "user input enters via `request.args`",
+     "stored in `path`",
+     "stored in `path`",
+     "reaches sink `os.path.isdir()`"
+    ],
+    "label": "BY_DESIGN",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "admin directory chooser: browsing the file system is the feature"
+   },
+   {
+    "project": "calibreweb",
+    "path": "admin.py",
+    "line": 1222,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "if config.config_use_google_drive and is_gdrive_ready() and not os.path.exists(metadata_db):",
+    "trace": [
+     "user input enters via `request.form`",
+     "stored in `to_save`",
+     "stored in `metadata_db`",
+     "reaches sink `os.path.exists()`"
+    ],
+    "label": "BY_DESIGN",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "admin settings form: calibre library path is the feature"
+   },
+   {
+    "project": "calibreweb",
+    "path": "editbooks.py",
+    "line": 818,
+    "rule_id": "RW-PY-XSS",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "modif_date |= edit_book_comments(Markup(to_save['description']).unescape(), book)",
+    "trace": [
+     "user input enters via `request.form`",
+     "stored in `to_save`",
+     "reaches sink `flask.Markup()`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P2",
+    "reason": "Markup(x).unescape() returns plain text; nothing is rendered here"
+   },
+   {
+    "project": "calibreweb",
+    "path": "kobo.py",
+    "line": 925,
+    "rule_id": "RW-PY-OPENREDIRECT",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "high",
+    "snippet": "return redirect(KOBO_IMAGEHOST_URL +",
+    "trace": [
+     "route parameter `book_uuid` comes from the URL",
+     "reaches sink `flask.redirect()`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P2",
+    "reason": "redirect to a fixed host prefix (KOBO_IMAGEHOST_URL)"
+   },
+   {
+    "project": "calibreweb",
+    "path": "web.py",
+    "line": 744,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return render_books_list(\"newest\", sort_param, 1, page)",
+    "trace": [
+     "user input enters via `render_books_list()` (user input enters via `request.args`)",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "helper returns a rendered template, not a raw HTML string"
+   },
+   {
+    "project": "calibreweb",
+    "path": "web.py",
+    "line": 1462,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return get_download_link(book_id, book_format, client)",
+    "trace": [
+     "route parameter `book_format` comes from the URL",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "helper returns a file response"
+   },
+   {
+    "project": "gerapy",
+    "path": "server/core/utils.py",
+    "line": 251,
+    "rule_id": "RW-PY-CMDI",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "medium",
+    "snippet": "p = Popen(cmd, shell=True, stdin=PIPE, stdout=PIPE, stderr=STDOUT, close_fds=True)",
+    "trace": [],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P2",
+    "reason": "dead code: get_output_error() has no caller"
+   },
+   {
+    "project": "langflow",
+    "path": "utils/validate.py",
+    "line": 96,
+    "rule_id": "RW-PY-CODEI",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "medium",
+    "snippet": "exec(",
+    "trace": [],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P2",
+    "reason": "alias names come from ast.parse, so they are identifiers and cannot carry code"
+   },
+   {
+    "project": "openwebui",
+    "path": "apps/ollama/main.py",
+    "line": 1178,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "total_size = os.path.getsize(file_path)",
+    "trace": [
+     "route parameter `file` comes from the URL",
+     "stored in `file_path`",
+     "reaches sink `os.path.getsize()`"
+    ],
+    "label": "BY_DESIGN",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "admin-only upload; Open WebUI admins can already run Python (same flow as CVE-2024-7034)"
+   },
+   {
+    "project": "openwebui",
+    "path": "apps/webui/routers/tools.py",
+    "line": 193,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "os.remove(toolkit_path)",
+    "trace": [
+     "route parameter `id` comes from the URL",
+     "stored in `toolkit_path`",
+     "reaches sink `os.remove()`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "id must match an existing tool row before the file is removed"
+   },
+   {
+    "project": "openwebui",
+    "path": "main.py",
+    "line": 1570,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "os.remove(file_path)",
+    "trace": [
+     "route parameter `file` comes from the URL",
+     "stored in `file_path`",
+     "reaches sink `os.remove()`"
+    ],
+    "label": "BY_DESIGN",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "admin-only pipeline upload; admins can already run code"
+   },
+   {
+    "project": "pgadmin",
+    "path": "authenticate/mfa/views.py",
+    "line": 264,
+    "rule_id": "RW-PY-OPENREDIRECT",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "high",
+    "snippet": "return None, redirect(next_url), None",
+    "trace": [
+     "user input enters via `request.form`",
+     "stored in `next_url`",
+     "reaches sink `flask.redirect()`"
+    ],
+    "label": "TP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P2",
+    "reason": "next_url from the form is redirected to without a host check"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/__init__.py",
+    "line": 176,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return make_json_response(data=msg, status=404)",
+    "trace": [
+     "user input enters via `request.data`",
+     "stored in `data`",
+     "stored in `data`",
+     "stored in `msg`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "JSON response"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/bgprocess/processes.py",
+    "line": 690,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "medium",
+    "snippet": "desc = loads(bytes.fromhex(p.desc))",
+    "trace": [],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P3",
+    "reason": "pickle data written by pgAdmin itself (process table)"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/biganimal/__init__.py",
+    "line": 123,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 70,
+    "confidence": "medium",
+    "snippet": "biganimal_obj = pickle.loads(session['biganimal']['provider_obj'])",
+    "trace": [],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P3",
+    "reason": "server-side session, not client controlled"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/biganimal/__init__.py",
+    "line": 133,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 70,
+    "confidence": "medium",
+    "snippet": "biganimal_obj = pickle.loads(session['biganimal']['provider_obj'])",
+    "trace": [],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P3",
+    "reason": "server-side session, not client controlled"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/google/__init__.py",
+    "line": 93,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "with open(client_secret_path, 'r') as json_file:",
+    "trace": [
+     "user input enters via `request.data`",
+     "stored in `data`",
+     "stored in `client_secret_path`",
+     "stored in `client_secret_path`",
+     "stored in `client_secret_path`",
+     "reaches sink `open()`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "filename_with_file_manager_path() restricts the path to the user's storage (raises PermissionError)"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/rds/__init__.py",
+    "line": 85,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return make_json_response(success=status, info=msg)",
+    "trace": [
+     "user input enters via `request.data`",
+     "stored in `data`",
+     "stored in `_rds`",
+     "stored in `status`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "JSON response"
+   },
+   {
+    "project": "pgadmin",
+    "path": "preferences/__init__.py",
+    "line": 220,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return internal_server_error(errormsg=msg)",
+    "trace": [
+     "user input enters via `get_data()` (user input enters via `request.form`)",
+     "stored in `pref_data`",
+     "stored in `data`",
+     "stored in `msg`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "JSON error response"
+   },
+   {
+    "project": "pgadmin",
+    "path": "settings/__init__.py",
+    "line": 263,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return make_json_response(success=True,",
+    "trace": [
+     "user input enters via `request.args`",
+     "stored in `v`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "JSON response"
+   },
+   {
+    "project": "pgadmin",
+    "path": "tools/sqleditor/__init__.py",
+    "line": 383,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return make_json_response(",
+    "trace": [
+     "user input enters via `request.data`",
+     "stored in `data`",
+     "stored in `kwargs`",
+     "stored in `conn_id`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "JSON response"
+   },
+   {
+    "project": "pgadmin",
+    "path": "tools/sqleditor/__init__.py",
+    "line": 568,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return make_json_response(",
+    "trace": [
+     "user input enters via `request.data`",
+     "stored in `data`",
+     "stored in `kwargs`",
+     "stored in `conn_id`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "JSON response"
+   },
+   {
+    "project": "pgadmin",
+    "path": "tools/sqleditor/__init__.py",
+    "line": 864,
+    "rule_id": "RW-PY-SQLI",
+    "tier": "P1",
+    "score": 87,
+    "confidence": "high",
+    "snippet": "return StartRunningQuery(blueprint, current_app.logger).execute(",
+    "trace": [
+     "user input enters via `request.data`",
+     "stored in `sql`",
+     "reaches sink `execute()`"
+    ],
+    "label": "BY_DESIGN",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "pgAdmin is a SQL client: running the user's SQL is the feature"
+   },
+   {
+    "project": "pyload",
+    "path": "core/__init__.py",
+    "line": 328,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P2",
+    "score": 60,
+    "confidence": "high",
+    "snippet": "if not os.path.exists(py_script) and os.path.exists(f\"{py_script}.exe\"):",
+    "trace": [
+     "user input enters via `sys.argv`",
+     "stored in `py_script`",
+     "stored in `py_script`",
+     "reaches sink `os.path.exists()`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P2",
+    "reason": "sys.argv[0] of the running process, no trust boundary"
+   },
+   {
+    "project": "pyload",
+    "path": "plugins/anticaptchas/HCaptcha.py",
+    "line": 133,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P2",
+    "score": 60,
+    "confidence": "high",
+    "snippet": "with open(sys.argv[1]) as fp:",
+    "trace": [
+     "user input enters via `sys.argv`",
+     "reaches sink `open()`"
+    ],
+    "label": "BY_DESIGN",
+    "still_reported_after_fixes": true,
+    "final_tier": "P2",
+    "reason": "local signing CLI reading a key file named on its command line"
+   },
+   {
+    "project": "pyload",
+    "path": "webui/app/blueprints/app_blueprint.py",
+    "line": 268,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "if os.path.isdir(path):",
+    "trace": [
+     "user input enters via `request.args`",
+     "stored in `path`",
+     "stored in `path`",
+     "reaches sink `os.path.isdir()`"
+    ],
+    "label": "BY_DESIGN",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "directory chooser for logged-in users: browsing is the feature"
+   },
+   {
+    "project": "pyload",
+    "path": "webui/app/blueprints/app_blueprint.py",
+    "line": 290,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "folders = os.listdir(cwd)",
+    "trace": [
+     "user input enters via `request.args`",
+     "stored in `path`",
+     "stored in `path`",
+     "stored in `cwd`",
+     "stored in `cwd`",
+     "stored in `cwd`",
+     "reaches sink `os.listdir()`"
+    ],
+    "label": "BY_DESIGN",
+    "still_reported_after_fixes": true,
+    "final_tier": "P1",
+    "reason": "directory chooser for logged-in users: browsing is the feature"
+   },
+   {
+    "project": "ray",
+    "path": "modules/job/job_head.py",
+    "line": 278,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return result",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "stored in `result`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": true,
+    "final_tier": "P2",
+    "reason": "returns a Response object built by a parser"
+   },
+   {
+    "project": "ray",
+    "path": "modules/job/job_head.py",
+    "line": 389,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return Response(",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "stored in `job_or_submission_id`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "aiohttp text/plain response"
+   },
+   {
+    "project": "ray",
+    "path": "modules/reporter/reporter_head.py",
+    "line": 170,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return aiohttp.web.Response(",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "stored in `format`",
+     "stored in `reply`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "py-spy output, not user data"
+   },
+   {
+    "project": "ray",
+    "path": "modules/serve/serve_agent.py",
+    "line": 218,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return Response(",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "stored in `config`",
+     "stored in `client`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "aiohttp text/plain response"
+   },
+   {
+    "project": "ray",
+    "path": "modules/snapshot/snapshot_head.py",
+    "line": 120,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return dashboard_optional_utils.rest_response(success=True, message=message)",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "stored in `actor_id`",
+     "stored in `message`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "JSON response"
+   },
+   {
+    "project": "ray",
+    "path": "modules/state/state_head.py",
+    "line": 347,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return await self._handle_list_api(self._state_api.list_cluster_events, req)",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "JSON response from a handler"
+   },
+   {
+    "project": "ray",
+    "path": "modules/state/state_head.py",
+    "line": 465,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return await self._handle_summary_api(self._state_api.summarize_tasks, req)",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "JSON response from a handler"
+   },
+   {
+    "project": "ray",
+    "path": "modules/state/state_head.py",
+    "line": 494,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return Response(text=result, content_type=\"application/json\", headers=headers)",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "stored in `job_id`",
+     "stored in `result`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "still_reported_after_fixes": false,
+    "final_tier": null,
+    "reason": "content_type application/json"
+   }
+  ]
+ },
+ "sample_2": {
+  "seed": 20261124,
+  "pool_size": 121,
+  "sample": [
+   {
+    "project": "archery",
+    "path": "sql/data_dictionary.py",
+    "line": 127,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "with open(f\"{path}/{instance_name}_{db}.html\", \"w\") as f:",
+    "trace": [
+     "user input enters via `request.GET`",
+     "stored in `instance_name`",
+     "reaches sink `open()`"
+    ],
+    "label": "FP",
+    "final_tier": "P1",
+    "reason": "instance_name is checked against the user's instances by an ORM lookup first"
+   },
+   {
+    "project": "archery",
+    "path": "sql/instance.py",
+    "line": 279,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "with open(revert_sql_file, \"r\") as f:",
+    "trace": [
+     "user input enters via `request.POST`",
+     "stored in `target_db_name`",
+     "stored in `revert_sql_file`",
+     "reaches sink `open()`"
+    ],
+    "label": "TP",
+    "final_tier": "P1",
+    "reason": "target_db_name from POST is placed in a file path read back with a fixed suffix; traversal possible, impact limited"
+   },
+   {
+    "project": "archery",
+    "path": "sql/instance_account.py",
+    "line": 349,
+    "rule_id": "RW-PY-SQLI",
+    "tier": "P1",
+    "score": 87,
+    "confidence": "high",
+    "snippet": "exec_result = engine.execute(db_name=\"mysql\", sql=f\"DROP USER {user_host};\")",
+    "trace": [
+     "user input enters via `request.POST`",
+     "stored in `user_host`",
+     "stored in `user_host`",
+     "reaches sink `engine.execute()`"
+    ],
+    "label": "TP",
+    "final_tier": "P1",
+    "reason": "MySQLdb.escape_string() does not help in an unquoted context: DROP USER {user_host}"
+   },
+   {
+    "project": "archery",
+    "path": "sql/views.py",
+    "line": 289,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "with open(file_name, \"w\") as f:",
+    "trace": [
+     "user input enters via `request.GET`",
+     "stored in `workflow_id`",
+     "stored in `file_name`",
+     "reaches sink `open()`"
+    ],
+    "label": "FP",
+    "final_tier": "P1",
+    "reason": "workflow_id is checked by can_rollback() and an ORM lookup first"
+   },
+   {
+    "project": "calibreweb",
+    "path": "editbooks.py",
+    "line": 1064,
+    "rule_id": "RW-PY-XSS",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "modif_date |= edit_book_comments(Markup(meta.description).unescape(), db_book)",
+    "trace": [
+     "user input enters via `request.files`",
+     "stored in `requested_file`",
+     "stored in `meta`",
+     "reaches sink `flask.Markup()`"
+    ],
+    "label": "FP",
+    "final_tier": "P2",
+    "reason": "Markup(x).unescape() returns plain text; nothing is rendered here"
+   },
+   {
+    "project": "calibreweb",
+    "path": "server.py",
+    "line": 157,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P2",
+    "score": 60,
+    "confidence": "high",
+    "snippet": "and not os.path.exists(py_script)",
+    "trace": [
+     "user input enters via `sys.argv`",
+     "stored in `py_script`",
+     "reaches sink `os.path.exists()`"
+    ],
+    "label": "FP",
+    "final_tier": "P2",
+    "reason": "sys.argv[0] of the running process"
+   },
+   {
+    "project": "calibreweb",
+    "path": "server.py",
+    "line": 166,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P2",
+    "score": 60,
+    "confidence": "high",
+    "snippet": "if not os.path.exists(py_script) and os.path.exists(\"{}.exe\".format(py_script)):",
+    "trace": [
+     "user input enters via `sys.argv`",
+     "stored in `py_script`",
+     "stored in `py_script`",
+     "reaches sink `os.path.exists()`"
+    ],
+    "label": "FP",
+    "final_tier": "P2",
+    "reason": "sys.argv[0] of the running process"
+   },
+   {
+    "project": "gerapy",
+    "path": "server/core/views.py",
+    "line": 623,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "os.rename(pre, new)",
+    "trace": [
+     "user input enters via `request.body`",
+     "stored in `data`",
+     "stored in `pre`",
+     "reaches sink `os.rename()`"
+    ],
+    "label": "TP",
+    "final_tier": "P1",
+    "reason": "arbitrary os.rename() of request-supplied paths"
+   },
+   {
+    "project": "openwebui",
+    "path": "apps/webui/routers/functions.py",
+    "line": 189,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "with open(function_path, \"w\") as function_file:",
+    "trace": [
+     "route parameter `id` comes from the URL",
+     "stored in `function_path`",
+     "reaches sink `open()`"
+    ],
+    "label": "BY_DESIGN",
+    "final_tier": "P1",
+    "reason": "admin-only; Open WebUI admins can already run Python"
+   },
+   {
+    "project": "openwebui",
+    "path": "apps/webui/routers/tools.py",
+    "line": 143,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "with open(toolkit_path, \"w\") as tool_file:",
+    "trace": [
+     "route parameter `id` comes from the URL",
+     "stored in `toolkit_path`",
+     "reaches sink `open()`"
+    ],
+    "label": "BY_DESIGN",
+    "final_tier": "P1",
+    "reason": "admin-only; Open WebUI admins can already run Python"
+   },
+   {
+    "project": "openwebui",
+    "path": "main.py",
+    "line": 1569,
+    "rule_id": "RW-PY-PATH",
+    "tier": "P1",
+    "score": 85,
+    "confidence": "high",
+    "snippet": "if os.path.exists(file_path):",
+    "trace": [
+     "route parameter `file` comes from the URL",
+     "stored in `file_path`",
+     "reaches sink `os.path.exists()`"
+    ],
+    "label": "BY_DESIGN",
+    "final_tier": "P1",
+    "reason": "admin-only pipeline upload"
+   },
+   {
+    "project": "openwebui",
+    "path": "main.py",
+    "line": 1786,
+    "rule_id": "RW-PY-SSRF",
+    "tier": "P1",
+    "score": 83,
+    "confidence": "high",
+    "snippet": "r = requests.post(",
+    "trace": [
+     "route parameter `pipeline_id` comes from the URL",
+     "reaches sink `requests.post()`"
+    ],
+    "label": "FP",
+    "final_tier": "P1",
+    "reason": "host is a configured base URL; only the path segment is user data"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/biganimal/__init__.py",
+    "line": 65,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 70,
+    "confidence": "medium",
+    "snippet": "biganimal_obj = pickle.loads(session['biganimal']['provider_obj'])",
+    "trace": [],
+    "label": "FP",
+    "final_tier": "P3",
+    "reason": "server-side session"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/biganimal/__init__.py",
+    "line": 91,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 70,
+    "confidence": "medium",
+    "snippet": "biganimal_obj = pickle.loads(session['biganimal']['provider_obj'])",
+    "trace": [],
+    "label": "FP",
+    "final_tier": "P3",
+    "reason": "server-side session"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/biganimal/__init__.py",
+    "line": 112,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 70,
+    "confidence": "medium",
+    "snippet": "biganimal_obj = pickle.loads(session['biganimal']['provider_obj'])",
+    "trace": [],
+    "label": "FP",
+    "final_tier": "P3",
+    "reason": "server-side session"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/biganimal/__init__.py",
+    "line": 170,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 70,
+    "confidence": "medium",
+    "snippet": "biganimal_obj = pickle.loads(session['biganimal']['provider_obj'])",
+    "trace": [],
+    "label": "FP",
+    "final_tier": "P3",
+    "reason": "server-side session"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/google/__init__.py",
+    "line": 224,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 70,
+    "confidence": "medium",
+    "snippet": "google_obj = pickle.loads(session['google']['google_obj'])",
+    "trace": [],
+    "label": "FP",
+    "final_tier": "P3",
+    "reason": "server-side session"
+   },
+   {
+    "project": "pgadmin",
+    "path": "misc/cloud/google/__init__.py",
+    "line": 306,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "medium",
+    "snippet": "google_obj = pickle.loads(session['google']['google_obj'])",
+    "trace": [],
+    "label": "FP",
+    "final_tier": "P3",
+    "reason": "server-side session"
+   },
+   {
+    "project": "pgadmin",
+    "path": "tools/debugger/__init__.py",
+    "line": 437,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return err_msg",
+    "trace": [
+     "route parameter `node_type` comes from the URL",
+     "stored in `status`",
+     "stored in `ret_status`",
+     "stored in `err_msg`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "final_tier": "P2",
+    "reason": "returns a response object from a helper"
+   },
+   {
+    "project": "pgadmin",
+    "path": "tools/schema_diff/__init__.py",
+    "line": 173,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "medium",
+    "snippet": "diff_model_obj = pickle.loads(session_obj['diff_model_obj'])",
+    "trace": [],
+    "label": "FP",
+    "final_tier": "P3",
+    "reason": "server-side session"
+   },
+   {
+    "project": "pgadmin",
+    "path": "tools/sqleditor/__init__.py",
+    "line": 542,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return errmsg",
+    "trace": [
+     "user input enters via `request.data`",
+     "stored in `data`",
+     "stored in `kwargs`",
+     "stored in `errmsg`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "final_tier": "P2",
+    "reason": "returns a response object from a helper"
+   },
+   {
+    "project": "pgadmin",
+    "path": "tools/sqleditor/__init__.py",
+    "line": 715,
+    "rule_id": "RW-PY-DESER",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "medium",
+    "snippet": "trans_obj = pickle.loads(session_obj['command_obj'])",
+    "trace": [],
+    "label": "FP",
+    "final_tier": "P3",
+    "reason": "server-side session"
+   },
+   {
+    "project": "pgadmin",
+    "path": "utils/__init__.py",
+    "line": 374,
+    "rule_id": "RW-PY-CMDI",
+    "tier": "P2",
+    "score": 65,
+    "confidence": "medium",
+    "snippet": "subprocess.getoutput('\"{0}\" --version'.format(full_path))",
+    "trace": [],
+    "label": "TP",
+    "final_tier": "P2",
+    "reason": "user-configured binary path reaches subprocess.getoutput() through a shell (same pattern as CVE-2023-5002)"
+   },
+   {
+    "project": "ray",
+    "path": "modules/log/log_head.py",
+    "line": 87,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return sr",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "stored in `r`",
+     "stored in `sr`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "final_tier": "P2",
+    "reason": "returns a StreamResponse object"
+   },
+   {
+    "project": "ray",
+    "path": "modules/serve/serve_agent.py",
+    "line": 282,
+    "rule_id": "RW-PY-XSS-RESPONSE",
+    "tier": "P2",
+    "score": 75,
+    "confidence": "high",
+    "snippet": "return conflict_response",
+    "trace": [
+     "route parameter `req` comes from the URL",
+     "stored in `config`",
+     "stored in `full_http_options`",
+     "stored in `option`",
+     "stored in `conflict_response`",
+     "reaches sink `HTTP response`"
+    ],
+    "label": "FP",
+    "final_tier": "P2",
+    "reason": "returns a Response object"
+   }
+  ]
+ },
+ "note": "Labelled by one reviewer reading the code around each finding. sample_1 was drawn (seed 20261123) from the P1/P2 findings of the held-out projects before any phase-2 engine fix; sample_2 (seed 20261124, excluding sample_1) after the guard/return/exists fixes and before the evidence-scoring change. final_tier is the tier in the merged version."
+}

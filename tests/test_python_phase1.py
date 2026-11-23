@@ -347,3 +347,117 @@ def test_literal_data_is_not_reported_for_deserialization(tmp_path):
             pickle.loads(blob)
     """)
     assert [(f.line, f.confidence) for f in findings] == [(5, Confidence.MEDIUM)]
+
+
+# --------------------------------------------------------------------------
+# Guards found too permissive by the held-out real-world check (phase 2)
+# --------------------------------------------------------------------------
+
+def _rules_at(tmp_path, code):
+    (tmp_path / "g.py").write_text(textwrap.dedent(code))
+    return {(f.rule_id, f.line, f.confidence.value) for f in
+            scan(tmp_path, options=ScanOptions(engines=["python-ast"])).findings}
+
+
+def test_prefix_check_does_not_clear_command_injection(tmp_path):
+    # Gerapy project_clone (fixed with CVE-2021-43857): "http://x; id" starts with "http".
+    found = _rules_at(tmp_path, '''
+        import json, subprocess
+        from flask import request
+        def clone():
+            address = json.loads(request.data).get("address")
+            if not address.startswith("http"):
+                return "no"
+            subprocess.Popen("git clone {}".format(address), shell=True)
+    ''')
+    assert ("RW-PY-CMDI", 8, "high") in found
+
+
+def test_suffix_check_does_not_clear_path_traversal(tmp_path):
+    # "../../app.py" ends with ".py".
+    found = _rules_at(tmp_path, '''
+        from flask import request
+        def upload():
+            name = request.files["f"].filename
+            if not name.endswith(".py"):
+                return "no"
+            open("/srv/plugins/" + name, "wb")
+    ''')
+    assert any(r == "RW-PY-PATH" and line == 7 for r, line, _ in found)
+
+
+def test_regex_guard_needs_an_anchored_allow_list(tmp_path):
+    found = _rules_at(tmp_path, '''
+        import os, re
+        from flask import request
+        def a():
+            x = request.args["x"]
+            if not re.match(r"[a-z]+", x):
+                return "no"
+            os.system("echo " + x)
+        def b():
+            x = request.args["x"]
+            if not re.match(r"^[a-z]+$", x):
+                return "no"
+            os.system("echo " + x)
+        def c():
+            x = request.args["x"]
+            if not x.isascii():
+                return "no"
+            os.system("echo " + x)
+    ''')
+    lines = {line for r, line, _ in found if r == "RW-PY-CMDI"}
+    assert 8 in lines and 13 not in lines and 18 in lines
+
+
+def test_quoted_literal_guard_clears_eval_only(tmp_path):
+    found = _rules_at(tmp_path, '''
+        from flask import request
+        def a():
+            bar = request.args["x"]
+            if not bar.startswith('"') or not bar.endswith('"') or '"' in bar[1:-1]:
+                return "no"
+            eval(bar)
+            request.environ["db"].execute("SELECT " + bar)
+    ''')
+    rules = {r for r, _, _ in found}
+    assert "RW-PY-CODEI" not in rules and "RW-PY-SQLI" in rules
+
+
+def test_orm_exists_is_not_a_file_system_call(tmp_path):
+    found = _rules_at(tmp_path, '''
+        import pathlib
+        from flask import request
+        def a():
+            name = request.args["n"]
+            if Config.objects.filter(name=name).exists():
+                return "yes"
+            if pathlib.Path(name).exists():
+                return "file"
+            p = pathlib.Path("/srv") / name
+            p.unlink()
+    ''')
+    lines = {line for r, line, _ in found if r == "RW-PY-PATH"}
+    assert 6 not in lines and 8 in lines and 11 in lines
+
+
+def test_returned_response_objects_are_not_html_strings(tmp_path):
+    found = _rules_at(tmp_path, '''
+        from flask import Flask, request, jsonify
+        app = Flask(__name__)
+        def make_json_response(**kw):
+            return jsonify(kw)
+        @app.route("/a")
+        def a():
+            msg = request.args["m"]
+            return make_json_response(data=msg)
+        @app.route("/b")
+        def b():
+            msg = request.args["m"]
+            return "<p>{}</p>".format(msg)
+        @app.route("/c")
+        async def c():
+            return await handler(request.args["m"])
+    ''')
+    lines = {line for r, line, _ in found if r == "RW-PY-XSS-RESPONSE"}
+    assert lines == {13}

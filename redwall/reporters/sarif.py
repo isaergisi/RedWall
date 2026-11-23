@@ -79,6 +79,16 @@ def _result(f: Finding, index: Dict[str, int]) -> dict:
     }
     if f.rule_id in index:
         res["ruleIndex"] = index[f.rule_id]
+    if f.triage is not None:
+        # SARIF `rank` (0-100) orders results in viewers; the rest is RedWall-specific.
+        res["rank"] = float(f.triage.score)
+        res["properties"]["priority"] = f.triage.tier
+        res["properties"]["priorityRank"] = f.triage.rank
+        res["properties"]["whyOpen"] = list(f.triage.why_open)
+        if f.triage.llm is not None:
+            res["properties"]["llm"] = f.triage.llm
+    if f.status.value == "suppressed":
+        res["suppressions"] = [{"kind": "inSource", "justification": f.snippet}]
     if f.cwe:
         res["properties"]["cwe"] = f.cwe
     if f.trace:
@@ -92,12 +102,13 @@ def _result(f: Finding, index: Dict[str, int]) -> dict:
 
 def render_sarif(result: ScanResult, **_) -> str:
     known = {r.id: r for r in all_rules()}
-    used_ids = sorted({f.rule_id for f in result.findings})
+    everything = result.findings + result.suppressed_findings
+    used_ids = sorted({f.rule_id for f in everything})
     rules: List[Rule] = [known[i] for i in sorted(known)]
     # Rules reported by an engine but missing from the catalogue still get a descriptor.
     for rid in used_ids:
         if rid not in known:
-            sample = next(f for f in result.findings if f.rule_id == rid)
+            sample = next(f for f in everything if f.rule_id == rid)
             rules.append(Rule(rid, sample.title, sample.severity, sample.cwe, sample.message, sample.engine))
     index = {r.id: i for i, r in enumerate(rules)}
     notifications = [{"level": "warning", "message": {"text": e}} for e in result.errors]
@@ -115,7 +126,7 @@ def render_sarif(result: ScanResult, **_) -> str:
                 "executionSuccessful": True,
                 "toolExecutionNotifications": notifications,
             }],
-            "results": [_result(f, index) for f in result.findings],
+            "results": [_result(f, index) for f in result.findings + result.suppressed_findings],
         }],
     }
     return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
