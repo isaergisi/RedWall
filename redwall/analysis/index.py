@@ -201,10 +201,9 @@ class ProjectIndex:
                 self.stats.relative += 1
                 self.stats.unresolved.append(f"{rel}: {'.' * level}{module or ''}")
                 continue
-            targets = [f"{base}.{n}" for n in names if n != "*"]
-            if not any(self.lookup(t) for t in targets):
-                targets = [base]
-            for t in targets:
+            # `from pkg import x`: x is a submodule, or else a name defined in pkg itself.
+            targets = {f"{base}.{n}" if self.lookup(f"{base}.{n}") else base for n in names if n != "*"} or {base}
+            for t in sorted(targets):
                 self._edge(rel, t, relative=relative)
 
     def _learn_outer_prefixes(self, pending: List[Tuple[str, int, Optional[str], Tuple[str, ...]]]) -> None:
