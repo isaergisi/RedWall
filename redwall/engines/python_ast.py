@@ -36,6 +36,7 @@ import ast
 import gc
 import operator
 import re
+import warnings
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Sequence, Set, Tuple
 
@@ -337,6 +338,16 @@ def _safe_binop(op: ast.operator, a: Any, b: Any) -> Any:
 # --------------------------------------------------------------------------
 
 
+def _internal_error(path: str, node: Optional[ast.AST], exc: BaseException, effect: str) -> str:
+    """One line for ScanResult.errors when the analyser itself fails on some code (a RedWall bug)."""
+    where = f"{path}:{node.lineno}" if node is not None and hasattr(node, "lineno") else path
+    name = getattr(node, "name", None)
+    what = f" in `{name}`" if name else ""
+    if isinstance(exc, RecursionError):
+        return f"{where}{what}: too deeply nested to analyse ({effect})"
+    return f"{where}{what}: internal analyser error, {effect} ({exc.__class__.__name__}: {exc})"
+
+
 def _dotted(node: ast.AST) -> Optional[str]:
     parts: List[str] = []
     while isinstance(node, ast.Attribute):
@@ -604,6 +615,7 @@ class _Project:
         self.classes: Set[str] = set()
         self._cache: Dict[int, Optional[Summary]] = {}
         self._busy: Set[int] = set()
+        self.errors: List[str] = []
 
     def add(self, module: "_Module") -> None:
         for node in module.tree.body:
@@ -625,6 +637,10 @@ class _Project:
         self._busy.add(key)
         try:
             result = self._summarise(module, fn)
+        except Exception as exc:  # noqa: BLE001 - one odd helper must not stop the scan
+            # No summary means the default behaviour at every call site, as for an unknown function.
+            self.errors.append(_internal_error(module.source.rel_path, fn, exc, "summary skipped"))
+            result = None
         finally:
             self._busy.discard(key)
         self._cache[key] = result
@@ -737,6 +753,12 @@ class _ModuleAnalyzer:
         self.loops: List[_LoopFrame] = []
         self.returns: Optional[List[Flow]] = None
         self._normalised_vars: Set[str] = set()
+        self.errors: List[str] = []
+
+    def _step(self, line: int, note: str, kind: str, function: Optional[str] = None) -> TraceStep:
+        """A trace step in this module, tagged with its file, enclosing function and kind."""
+        return TraceStep(line, note, path=self.source.rel_path,
+                         function=function if function is not None else (".".join(self.func_stack) or None), kind=kind)
 
     # -- name resolution ---------------------------------------------------
 
@@ -792,7 +814,7 @@ class _ModuleAnalyzer:
     def _flow(self, node: ast.expr, scope: Scope) -> Flow:
         note = self.source_note(node)
         if note:
-            return Flow(TAINTED, (TraceStep(node.lineno, f"user input enters via `{note}`"),))
+            return Flow(TAINTED, (self._step(node.lineno, f"user input enters via `{note}`", "source"),))
         if isinstance(node, ast.Constant):
             return _const(node.value)
         if isinstance(node, ast.Name):
@@ -1004,7 +1026,7 @@ class _ModuleAnalyzer:
                 return _CONST
             if first.level == TAINTED:
                 return replace(first, safe_for=first.safe_for | kinds, elems=None, keys=None,
-                               steps=first.steps + (TraceStep(node.lineno, f"escaped by `{name}()` (safe for {', '.join(sorted(kinds))} only)"),))
+                               steps=first.steps + (self._step(node.lineno, f"escaped by `{name}()` (safe for {', '.join(sorted(kinds))} only)", "sanitizer"),))
             return replace(first, elems=None, keys=None) if first.level != CONST else _CONST
 
         # Containers and parser objects.
@@ -1040,8 +1062,8 @@ class _ModuleAnalyzer:
         summary = self._summary_for(node, name, method, scope)
         if summary is not None:
             if summary.kind == "source":
-                return Flow(TAINTED, (TraceStep(node.lineno, f"user input enters via `{name or method}()`"
-                                                + (f" ({summary.note})" if summary.note else "")),))
+                return Flow(TAINTED, (self._step(node.lineno, f"user input enters via `{name or method}()`"
+                                                 + (f" ({summary.note})" if summary.note else ""), "source"),))
             if summary.kind == "const":
                 return _const(summary.value) if summary.value is not NOVALUE else _CONST
             if summary.kind == "propagate":
@@ -1081,7 +1103,7 @@ class _ModuleAnalyzer:
                     old, new = _value(args[0]), _value(args[1])
                     if isinstance(old, str) and isinstance(new, str) and old in ("'", '"') and old not in new:
                         out = replace(out, safe_for=out.safe_for | {"xpathi"},
-                                      steps=out.steps + (TraceStep(node.lineno, f"quote `{old}` replaced"),))
+                                      steps=out.steps + (self._step(node.lineno, f"quote `{old}` replaced", "sanitizer"),))
                 return out
             if method in ("getvalue", "read", "readline", "readlines", "decode", "encode", "copy", "items",
                           "values", "keys") and receiver.level != CONST:
@@ -1156,7 +1178,16 @@ class _ModuleAnalyzer:
 
     def run(self) -> List[Finding]:
         self.route_stack.append(False)
-        self._walk_body(self.module.tree.body, Scope())
+        scope = Scope()
+        body = self.module.tree.body
+        for i, stmt in enumerate(body):
+            try:
+                if self._walk_stmt(stmt, scope, body[i + 1:]):
+                    break
+            except Exception as exc:  # noqa: BLE001 - keep going with the next top-level statement
+                self.errors.append(_internal_error(self.source.rel_path, stmt, exc, "statement skipped"))
+                del self.func_stack[:], self.loops[:]
+                self.route_stack[:] = [False]
         return list(self.findings.values())
 
     def returns_of(self, fn: Any, params: Scope) -> List[Flow]:
@@ -1171,7 +1202,7 @@ class _ModuleAnalyzer:
     def _bind(self, target: ast.expr, value: Flow, scope: Scope, line: int, origin: FrozenSet[str] = frozenset()) -> None:
         if isinstance(target, ast.Name):
             if value.level == TAINTED:
-                value = _with_step(value, TraceStep(line, f"stored in `{target.id}`"))
+                value = _with_step(value, self._step(line, f"stored in `{target.id}`", "propagation"))
             scope[target.id] = replace(value, origin=value.origin | origin)
         elif isinstance(target, (ast.Tuple, ast.List)):
             for i, elt in enumerate(target.elts):
@@ -1342,7 +1373,8 @@ class _ModuleAnalyzer:
             if is_route and a.arg in typed:
                 scope[a.arg] = _CONST
             elif is_route:
-                scope[a.arg] = Flow(TAINTED, (TraceStep(fn.lineno, f"route parameter `{a.arg}` comes from the URL"),))  # type: ignore[attr-defined]
+                scope[a.arg] = Flow(TAINTED, (self._step(fn.lineno, f"route parameter `{a.arg}` comes from the URL", "source",  # type: ignore[attr-defined]
+                                                          function=".".join(self.func_stack + [fn.name])),))  # type: ignore[attr-defined]
             else:
                 scope[a.arg] = _UNKNOWN
         return scope, is_route
@@ -1373,6 +1405,11 @@ class _ModuleAnalyzer:
             saved_loops, self.loops = self.loops, []
             try:
                 self._walk_body(stmt.body, inner)
+            except Exception as exc:  # noqa: BLE001
+                if self.quiet:
+                    raise  # summaries handle their own failures (_Project.summary)
+                # Keep the findings already made in this function and every other function.
+                self.errors.append(_internal_error(self.source.rel_path, stmt, exc, "rest of the function skipped"))
             finally:
                 self.func_stack.pop()
                 self.route_stack.pop()
@@ -1783,7 +1820,7 @@ class _ModuleAnalyzer:
                 flow.level if flow else UNKNOWN, Confidence.LOW)
         trace: List[TraceStep] = []
         if flow is not None and flow.level == TAINTED:
-            trace = [s for s in flow.steps if s.line > 0] + [TraceStep(node.lineno, f"reaches sink `{sink}`")]  # type: ignore[attr-defined]
+            trace = [s for s in flow.steps if s.line > 0] + [self._step(node.lineno, f"reaches sink `{sink}`", "sink")]  # type: ignore[attr-defined]
         line = node.lineno  # type: ignore[attr-defined]
         col = getattr(node, "col_offset", 0) + 1
         key = (rule_id, line, col)
@@ -2131,16 +2168,31 @@ class PythonAstEngine(Engine):
         project = _Project()
         for source in files:
             try:
-                tree = ast.parse(source.text, filename=source.rel_path)
-            except (SyntaxError, ValueError) as exc:
+                with warnings.catch_warnings():
+                    # Invalid escape sequences etc. in scanned code are not the user's problem here.
+                    warnings.simplefilter("ignore", SyntaxWarning)
+                    warnings.simplefilter("ignore", DeprecationWarning)
+                    tree = ast.parse(source.text, filename=source.rel_path)
+            except (SyntaxError, ValueError, RecursionError, MemoryError) as exc:
                 errors.append(f"{source.rel_path}: could not parse ({exc.__class__.__name__}: {exc})")
                 continue
-            module = _Module.build(source, tree)
-            project.add(module)
+            try:
+                module = _Module.build(source, tree)
+                project.add(module)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(_internal_error(source.rel_path, None, exc, "file skipped"))
+                continue
             modules.append(module)
         for module in modules:
+            analyzer = _ModuleAnalyzer(module, project)
             try:
-                findings.extend(_ModuleAnalyzer(module, project).run())
+                findings.extend(analyzer.run())
             except RecursionError:
                 errors.append(f"{module.source.rel_path}: too deeply nested to analyse")
+                findings.extend(analyzer.findings.values())
+            except Exception as exc:  # noqa: BLE001 - last resort; run() isolates statements itself
+                errors.append(_internal_error(module.source.rel_path, None, exc, "rest of the file skipped"))
+                findings.extend(analyzer.findings.values())
+            errors.extend(analyzer.errors)
+        errors.extend(project.errors)
         return findings, errors

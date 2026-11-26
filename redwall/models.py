@@ -90,13 +90,34 @@ class Rule:
 
 @dataclass(frozen=True)
 class TraceStep:
-    """One hop of a data-flow trace (source -> ... -> sink)."""
+    """One hop of a data-flow trace (source -> ... -> sink).
+
+    ``path`` is the file of this step relative to the scan root; ``None`` means the finding's own file
+    (what every engine emitted before steps could cross files). ``kind`` is one of ``source``,
+    ``propagation``, ``sanitizer``, ``call``, ``return`` or ``sink`` when the engine knows it.
+    """
 
     line: int
     note: str
+    path: Optional[str] = None
+    function: Optional[str] = None
+    kind: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"line": self.line, "note": self.note}
+        out: Dict[str, Any] = {"line": self.line, "note": self.note}
+        if self.path is not None:
+            out["path"] = self.path
+        if self.function:
+            out["function"] = self.function
+        if self.kind:
+            out["kind"] = self.kind
+        return out
+
+    def where(self, finding_path: str) -> str:
+        """``line 12`` in the finding's own file, ``pkg/db.py:12`` in another one."""
+        if self.path and self.path != finding_path:
+            return f"{self.path}:{self.line}"
+        return f"line {self.line}"
 
 
 @dataclass(frozen=True)

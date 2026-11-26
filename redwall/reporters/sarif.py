@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from .. import INFO_URI, TOOL_NAME, __version__
 from ..engines import all_rules
-from ..models import Finding, Rule, ScanResult, Severity
+from ..models import Finding, Rule, ScanResult, Severity, TraceStep
 
 SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
 _LEVEL = {
@@ -43,10 +43,14 @@ def _rule_descriptor(rule: Rule) -> dict:
     }
 
 
-def _location(f: Finding, line: int, message: str = "") -> dict:
+_FLOW_KINDS = {"source": ["taint", "source"], "sink": ["taint", "sink"], "sanitizer": ["sanitizer"],
+               "call": ["call"], "return": ["return"], "propagation": ["taint"]}
+
+
+def _location(f: Finding, line: int, message: str = "", path: str = "") -> dict:
     loc: dict = {
         "physicalLocation": {
-            "artifactLocation": {"uri": f.path, "uriBaseId": "%SRCROOT%"},
+            "artifactLocation": {"uri": path or f.path, "uriBaseId": "%SRCROOT%"},
             "region": {"startLine": line},
         }
     }
@@ -93,11 +97,19 @@ def _result(f: Finding, index: Dict[str, int]) -> dict:
         res["properties"]["cwe"] = f.cwe
     if f.trace:
         res["codeFlows"] = [{
-            "threadFlows": [{
-                "locations": [{"location": _location(f, s.line, s.note)} for s in f.trace]
-            }]
+            "threadFlows": [{"locations": [_flow_location(f, s) for s in f.trace]}]
         }]
     return res
+
+
+def _flow_location(f: Finding, step: TraceStep) -> dict:
+    """A codeFlow step; steps in other files (cross-file flows) point at their own file."""
+    out: dict = {"location": _location(f, step.line, step.note, step.path or "")}
+    if step.kind in _FLOW_KINDS:
+        out["kinds"] = list(_FLOW_KINDS[step.kind])
+    if step.function:
+        out["location"]["logicalLocations"] = [{"fullyQualifiedName": step.function, "kind": "function"}]
+    return out
 
 
 def render_sarif(result: ScanResult, **_) -> str:
