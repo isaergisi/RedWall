@@ -93,5 +93,6 @@ not the precision of every finding in the project.
 The synthetic suite has a vulnerable variant and a safe twin for every multi-file scenario (three-file
 chains, relative imports, src layout, `__init__` re-exports, factories, inheritance, `self` methods,
 sanitisers and validators in other files, import cycles, recursion, `getattr` dispatch, typed FastAPI
-parameters, gRPC servicers, unparsable files). `results/faz3/` holds the numbers measured before any
-phase 3 engine change.
+parameters, gRPC servicers, unparsable files). `results/faz3/*-before.*` holds the numbers
+measured before any phase 3 engine change, `*-after.*` the before/after comparison after D1-D3
+(`docs/arastirma/faz3-d1-d3-olcum.md`).

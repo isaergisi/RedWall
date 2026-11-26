@@ -1,0 +1,1155 @@
+{
+  "manifest": "benchmarks/realworld/cves.json",
+  "sealed": false,
+  "seal_ok": null,
+  "projects": {
+    "gerapy": {
+      "before": {
+        "findings": 14,
+        "seconds": 0.2,
+        "fixed_findings": 11,
+        "by_priority": {
+          "P1": 11,
+          "P2": 2,
+          "P3": 1,
+          "P4": 0
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 56
+          }
+        ]
+      },
+      "after": {
+        "findings": 14,
+        "seconds": 0.3,
+        "fixed_findings": 11,
+        "by_priority": {
+          "P1": 11,
+          "P2": 2,
+          "P3": 1,
+          "P4": 0
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "project imports resolved: 50/53",
+            "files": 56
+          }
+        ]
+      }
+    },
+    "pgadmin": {
+      "before": {
+        "findings": 556,
+        "seconds": 6.9,
+        "fixed_findings": 553,
+        "by_priority": {
+          "P1": 8,
+          "P2": 11,
+          "P3": 39,
+          "P4": 498
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 857
+          }
+        ]
+      },
+      "after": {
+        "findings": 554,
+        "seconds": 7.9,
+        "fixed_findings": 551,
+        "by_priority": {
+          "P1": 8,
+          "P2": 10,
+          "P3": 38,
+          "P4": 498
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "project imports resolved: 3106/3106, 4 import cycles",
+            "files": 857
+          }
+        ]
+      }
+    },
+    "pyload": {
+      "before": {
+        "findings": 35,
+        "seconds": 3.8,
+        "fixed_findings": null,
+        "by_priority": {
+          "P1": 6,
+          "P2": 6,
+          "P3": 1,
+          "P4": 22
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 543
+          }
+        ]
+      },
+      "after": {
+        "findings": 38,
+        "seconds": 3.8,
+        "fixed_findings": null,
+        "by_priority": {
+          "P1": 6,
+          "P2": 9,
+          "P3": 1,
+          "P4": 22
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "project imports resolved: 888/888",
+            "files": 543
+          }
+        ]
+      }
+    },
+    "calibreweb": {
+      "before": {
+        "findings": 22,
+        "seconds": 1.6,
+        "fixed_findings": 21,
+        "by_priority": {
+          "P1": 7,
+          "P2": 11,
+          "P3": 1,
+          "P4": 3
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 60
+          }
+        ]
+      },
+      "after": {
+        "findings": 24,
+        "seconds": 2.0,
+        "fixed_findings": 23,
+        "by_priority": {
+          "P1": 7,
+          "P2": 13,
+          "P3": 1,
+          "P4": 3
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "project imports resolved: 237/237, 1 import cycle",
+            "files": 60
+          }
+        ]
+      }
+    },
+    "openwebui": {
+      "before": {
+        "findings": 35,
+        "seconds": 0.9,
+        "fixed_findings": null,
+        "by_priority": {
+          "P1": 22,
+          "P2": 1,
+          "P3": 0,
+          "P4": 12
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 84
+          }
+        ]
+      },
+      "after": {
+        "findings": 35,
+        "seconds": 0.9,
+        "fixed_findings": null,
+        "by_priority": {
+          "P1": 22,
+          "P2": 1,
+          "P3": 0,
+          "P4": 12
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "project imports resolved: 239/239",
+            "files": 84
+          }
+        ]
+      }
+    },
+    "langflow": {
+      "before": {
+        "findings": 32,
+        "seconds": 3.3,
+        "fixed_findings": 29,
+        "by_priority": {
+          "P1": 1,
+          "P2": 8,
+          "P3": 22,
+          "P4": 1
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 726
+          }
+        ]
+      },
+      "after": {
+        "findings": 32,
+        "seconds": 3.8,
+        "fixed_findings": 29,
+        "by_priority": {
+          "P1": 1,
+          "P2": 8,
+          "P3": 22,
+          "P4": 1
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "project imports resolved: 2381/2430, 4 import cycles",
+            "files": 726
+          }
+        ]
+      }
+    },
+    "ray": {
+      "before": {
+        "findings": 28,
+        "seconds": 1.2,
+        "fixed_findings": 22,
+        "by_priority": {
+          "P1": 0,
+          "P2": 7,
+          "P3": 4,
+          "P4": 17
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 124
+          }
+        ]
+      },
+      "after": {
+        "findings": 28,
+        "seconds": 1.3,
+        "fixed_findings": 22,
+        "by_priority": {
+          "P1": 0,
+          "P2": 7,
+          "P3": 4,
+          "P4": 17
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "project imports resolved: 209/209",
+            "files": 124
+          }
+        ]
+      }
+    },
+    "archery": {
+      "before": {
+        "findings": 31,
+        "seconds": 1.7,
+        "fixed_findings": null,
+        "by_priority": {
+          "P1": 10,
+          "P2": 3,
+          "P3": 17,
+          "P4": 1
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 111
+          }
+        ]
+      },
+      "after": {
+        "findings": 31,
+        "seconds": 1.5,
+        "fixed_findings": null,
+        "by_priority": {
+          "P1": 10,
+          "P2": 3,
+          "P3": 17,
+          "P4": 1
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "project imports resolved: 367/367, 3 import cycles",
+            "files": 111
+          }
+        ]
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "gerapy-configure",
+      "project": "gerapy",
+      "advisory": "CVE-2021-43857",
+      "cwe": "78",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 259,
+          "confidence": "medium",
+          "of": 14,
+          "rank": 13,
+          "tier": "P2",
+          "score": 65,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": false
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 259,
+          "confidence": "medium",
+          "of": 14,
+          "rank": 13,
+          "tier": "P2",
+          "score": 65,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": false
+        }
+      }
+    },
+    {
+      "id": "gerapy-clone",
+      "project": "gerapy",
+      "advisory": "fixed with CVE-2021-43857 in 0.9.8",
+      "cwe": "78",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 339,
+          "confidence": "high",
+          "of": 14,
+          "rank": 1,
+          "tier": "P1",
+          "score": 95,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": false
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 339,
+          "confidence": "high",
+          "of": 14,
+          "rank": 1,
+          "tier": "P1",
+          "score": 95,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": false
+        }
+      }
+    },
+    {
+      "id": "gerapy-parse",
+      "project": "gerapy",
+      "advisory": "fixed with CVE-2021-43857 in 0.9.8",
+      "cwe": "78",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 539,
+          "confidence": "high",
+          "of": 14,
+          "rank": 2,
+          "tier": "P1",
+          "score": 95,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": false
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 539,
+          "confidence": "high",
+          "of": 14,
+          "rank": 2,
+          "tier": "P1",
+          "score": 95,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": false
+        }
+      }
+    },
+    {
+      "id": "pgadmin-binary-path",
+      "project": "pgadmin",
+      "advisory": "CVE-2023-5002",
+      "cwe": "78",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 273,
+          "confidence": "high",
+          "of": 556,
+          "rank": 1,
+          "tier": "P1",
+          "score": 95,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": false
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CMDI",
+          "line": 273,
+          "confidence": "high",
+          "of": 554,
+          "rank": 1,
+          "tier": "P1",
+          "score": 95,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": false
+        }
+      }
+    },
+    {
+      "id": "pyload-cnl-eval-js",
+      "project": "pyload",
+      "advisory": "CVE-2023-0297",
+      "cwe": "94",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          }
+        }
+      }
+    },
+    {
+      "id": "calibreweb-cover-ssrf",
+      "project": "calibreweb",
+      "advisory": "CVE-2022-0939",
+      "cwe": "918",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        },
+        "after": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "openwebui-model-upload",
+      "project": "openwebui",
+      "advisory": "CVE-2024-7034 (rejected by vendor/CNA: admin-only endpoint)",
+      "cwe": "22",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-PATH",
+          "line": 1172,
+          "confidence": "high",
+          "of": 35,
+          "rank": 1,
+          "tier": "P1",
+          "score": 85,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-PATH",
+          "line": 1172,
+          "confidence": "high",
+          "of": 35,
+          "rank": 1,
+          "tier": "P1",
+          "score": 85,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          }
+        }
+      }
+    },
+    {
+      "id": "langflow-validate-exec",
+      "project": "langflow",
+      "advisory": "CVE-2025-3248",
+      "cwe": "94",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CODEI",
+          "line": 55,
+          "confidence": "low",
+          "of": 32,
+          "rank": 17,
+          "tier": "P3",
+          "score": 50,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "fixed_release_still_flagged": true
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-CODEI",
+          "line": 55,
+          "confidence": "low",
+          "of": 32,
+          "rank": 17,
+          "tier": "P3",
+          "score": 50,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "fixed_release_still_flagged": true
+        }
+      }
+    },
+    {
+      "id": "ray-cpu-profile",
+      "project": "ray",
+      "advisory": "CVE-2023-6019",
+      "cwe": "78",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        },
+        "after": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "archery-101-describe",
+      "project": "archery",
+      "advisory": "GHSL-2022-101",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 182,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 30,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 182,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 30,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          }
+        }
+      }
+    },
+    {
+      "id": "archery-102-execute-check",
+      "project": "archery",
+      "advisory": "GHSL-2022-102",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 640,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 19,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 640,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 19,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          }
+        }
+      }
+    },
+    {
+      "id": "archery-103-explain-check",
+      "project": "archery",
+      "advisory": "GHSL-2022-103",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 574,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 18,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 574,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 18,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          }
+        }
+      }
+    },
+    {
+      "id": "archery-104-param-edit",
+      "project": "archery",
+      "advisory": "GHSL-2022-104",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": true,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": false,
+          "vulnerable": {
+            "file": true,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          }
+        }
+      }
+    },
+    {
+      "id": "archery-105-table-list",
+      "project": "archery",
+      "advisory": "GHSL-2022-105",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 16,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 16,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          }
+        }
+      }
+    },
+    {
+      "id": "archery-106-table-info",
+      "project": "archery",
+      "advisory": "GHSL-2022-106",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 16,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 16,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          }
+        }
+      }
+    },
+    {
+      "id": "archery-107-sqltuning",
+      "project": "archery",
+      "advisory": "GHSL-2022-107",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 1347,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 26,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 1347,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 26,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          }
+        }
+      }
+    },
+    {
+      "id": "archery-108-explain",
+      "project": "archery",
+      "advisory": "GHSL-2022-108",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 16,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          }
+        },
+        "after": {
+          "detected": true,
+          "only_shared_sink": true,
+          "rule": "RW-PY-SQLI",
+          "line": 310,
+          "confidence": "medium",
+          "of": 31,
+          "rank": 16,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          }
+        }
+      }
+    }
+  ],
+  "metrics": {
+    "before": {
+      "file": {
+        "tp": 14,
+        "fp": 1,
+        "tn": 6,
+        "fn": 3,
+        "precision": 0.933,
+        "recall": 0.824,
+        "f1": 0.875
+      },
+      "vuln": {
+        "tp": 13,
+        "fp": 1,
+        "tn": 6,
+        "fn": 4,
+        "precision": 0.929,
+        "recall": 0.765,
+        "f1": 0.839
+      },
+      "exact": {
+        "tp": 9,
+        "fp": 1,
+        "tn": 6,
+        "fn": 8,
+        "precision": 0.9,
+        "recall": 0.529,
+        "f1": 0.667
+      },
+      "flow": {
+        "tp": 3,
+        "fp": 0,
+        "tn": 7,
+        "fn": 14,
+        "precision": 1.0,
+        "recall": 0.176,
+        "f1": 0.3
+      }
+    },
+    "after": {
+      "file": {
+        "tp": 14,
+        "fp": 1,
+        "tn": 6,
+        "fn": 3,
+        "precision": 0.933,
+        "recall": 0.824,
+        "f1": 0.875
+      },
+      "vuln": {
+        "tp": 13,
+        "fp": 1,
+        "tn": 6,
+        "fn": 4,
+        "precision": 0.929,
+        "recall": 0.765,
+        "f1": 0.839
+      },
+      "exact": {
+        "tp": 9,
+        "fp": 1,
+        "tn": 6,
+        "fn": 8,
+        "precision": 0.9,
+        "recall": 0.529,
+        "f1": 0.667
+      },
+      "flow": {
+        "tp": 3,
+        "fp": 0,
+        "tn": 7,
+        "fn": 14,
+        "precision": 1.0,
+        "recall": 0.176,
+        "f1": 0.3
+      }
+    }
+  }
+}
