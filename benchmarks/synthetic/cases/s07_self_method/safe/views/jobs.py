@@ -12,4 +12,4 @@ class JobView(CommandMixin, MethodView):
 
     def post(self):
         job = request.form["job"]  # gt:source
-        return self.execute(self.build(job))
+        return self.execute(self.build(job))  # gt:sink

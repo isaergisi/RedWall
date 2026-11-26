@@ -8,5 +8,5 @@ class Engine:
     def tables(self, db_name):
         sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = '%s'" % db_name  # gt:sink
         cur = self.connect().cursor()
-        cur.execute(sql)
+        cur.execute(sql)  # gt:sink
         return cur.fetchall()
