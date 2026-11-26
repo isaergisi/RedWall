@@ -38,8 +38,10 @@ import operator
 import re
 import warnings
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Sequence, Set, Tuple
 
+from ..analysis import ProjectIndex
 from ..models import Confidence, Finding, Rule, Severity, TraceStep
 from . import python_kb as kb
 from .base import Engine, SourceFile
@@ -359,7 +361,13 @@ def _dotted(node: ast.AST) -> Optional[str]:
     return None
 
 
-def _collect_imports(tree: ast.AST) -> Tuple[Dict[str, str], Set[str]]:
+def _collect_imports(tree: ast.AST, resolve_relative: Optional[Callable[[int, Optional[str]], Optional[str]]] = None
+                     ) -> Tuple[Dict[str, str], Set[str]]:
+    """Local name -> dotted name it was imported as, and the modules imported.
+
+    ``resolve_relative(level, module)`` turns ``from ..x import y`` into an absolute module name; without
+    it (or when it cannot) relative imports are left out, as before phase 3.
+    """
     aliases: Dict[str, str] = {}
     modules: Set[str] = set()
     for node in ast.walk(tree):
@@ -368,10 +376,15 @@ def _collect_imports(tree: ast.AST) -> Tuple[Dict[str, str], Set[str]]:
                 modules.add(a.name)
                 if a.asname:
                     aliases[a.asname] = a.name
-        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-            modules.add(node.module)
+        elif isinstance(node, ast.ImportFrom):
+            base = node.module if node.level == 0 else (
+                resolve_relative(node.level, node.module) if resolve_relative else None)
+            if not base:
+                continue
+            modules.add(base)
             for a in node.names:
-                aliases[a.asname or a.name] = f"{node.module}.{a.name}"
+                if a.name != "*":
+                    aliases[a.asname or a.name] = f"{base}.{a.name}"
     return aliases, modules
 
 
@@ -613,20 +626,43 @@ class _Project:
         self.functions: Dict[str, Tuple["_Module", ast.AST]] = {}   # qualified name -> def
         self.methods: Dict[str, List[Tuple["_Module", ast.AST]]] = {}  # bare method name -> defs
         self.classes: Set[str] = set()
+        self.by_module: Dict[str, "_Module"] = {}  # every importable name -> module
         self._cache: Dict[int, Optional[Summary]] = {}
         self._busy: Set[int] = set()
         self.errors: List[str] = []
 
     def add(self, module: "_Module") -> None:
+        names = module.names or (module.qualname,)
+        for name in names:
+            self.by_module.setdefault(name, module)
         for node in module.tree.body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                self.functions[f"{module.qualname}.{node.name}"] = (module, node)
+                for name in names:
+                    self.functions.setdefault(f"{name}.{node.name}", (module, node))
             elif isinstance(node, ast.ClassDef):
                 self.classes.add(f"{module.qualname}.{node.name}")
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and not item.name.startswith("__"):
-                        self.functions[f"{module.qualname}.{node.name}.{item.name}"] = (module, item)
+                        for name in names:
+                            self.functions.setdefault(f"{name}.{node.name}.{item.name}", (module, item))
                         self.methods.setdefault(item.name, []).append((module, item))
+
+    def find(self, dotted: str, _depth: int = 0) -> Optional[str]:
+        """The key in ``functions`` that ``dotted`` refers to, following package re-exports
+        (``from .impl import run`` in ``pkg/__init__.py`` makes ``pkg.run`` mean ``pkg.impl.run``)."""
+        if dotted in self.functions:
+            return dotted
+        if _depth > 5:
+            return None
+        head, _, attr = dotted.rpartition(".")
+        module = self.by_module.get(head)
+        if module is not None and attr in module.aliases and module.aliases[attr] != dotted:
+            return self.find(module.aliases[attr], _depth + 1)
+        owner, _, cls = head.rpartition(".")  # pkg.Class.method with Class re-exported by pkg
+        module = self.by_module.get(owner)
+        if module is not None and cls in module.aliases:
+            return self.find(f"{module.aliases[cls]}.{attr}", _depth + 1)
+        return None
 
     def summary(self, module: "_Module", fn: ast.AST) -> Optional[Summary]:
         key = id(fn)
@@ -714,15 +750,22 @@ class _Module:
     qualname: str
     aliases: Dict[str, str] = field(default_factory=dict)
     modules: Set[str] = field(default_factory=set)
+    names: Tuple[str, ...] = ()  # every name the module can be imported as (qualname first)
 
     @classmethod
-    def build(cls, source: SourceFile, tree: ast.Module) -> "_Module":
-        rel = source.rel_path[:-3] if source.rel_path.endswith(".py") else source.rel_path
-        qual = rel.replace("/", ".")
+    def build(cls, source: SourceFile, tree: ast.Module, index: Optional[ProjectIndex] = None) -> "_Module":
+        rel = source.rel_path
+        if index is not None and rel in index.modules:
+            info = index.info(rel)
+            aliases, modules = _collect_imports(tree, lambda level, mod: index.resolve_relative(rel, level, mod))
+            names = (info.name,) + tuple(n for n in info.aliases if index.lookup(n) == rel)  # no shared aliases
+            return cls(source, tree, info.name, aliases, modules, names)
+        stem = rel[:-3] if rel.endswith(".py") else rel
+        qual = stem.replace("/", ".")
         if qual.endswith(".__init__"):
             qual = qual[: -len(".__init__")]
         aliases, modules = _collect_imports(tree)
-        return cls(source, tree, qual, aliases, modules)
+        return cls(source, tree, qual, aliases, modules, (qual,))
 
     def imports(self, *prefixes: str) -> bool:
         names = self.modules | set(self.aliases.values())
@@ -1163,11 +1206,11 @@ class _ModuleAnalyzer:
         return _collapse(recv)
 
     def _summary_for(self, node: ast.Call, name: str, method: str, scope: Scope) -> Optional[Summary]:
-        if name and name in self.project.functions:
-            return self.project.lookup_function(name)
-        local = f"{self.module.qualname}.{name}" if name else ""
-        if local and local in self.project.functions:
-            return self.project.lookup_function(local)
+        target = self.project.find(name) if name else None
+        if target is None and name:
+            target = self.project.find(f"{self.module.qualname}.{name}")
+        if target is not None:
+            return self.project.lookup_function(target)
         if method and isinstance(node.func, ast.Attribute) and not self._is_module_ref(node.func, scope):
             receiver = self.flow(node.func.value, scope)
             if receiver.level != TAINTED and receiver.elems is None and receiver.keys is None:
@@ -2140,8 +2183,29 @@ class _ModuleAnalyzer:
         return any(w in text for w in kb.SECURITY_WORDS)
 
 
+def _scan_root(files: List[SourceFile]) -> Optional[Path]:
+    for f in files:
+        depth = f.rel_path.count("/") + 1
+        try:
+            return f.abs_path.parents[depth - 1]
+        except IndexError:
+            return None
+    return None
+
+
+def _index_detail(index: ProjectIndex) -> str:
+    st = index.stats
+    total = st.absolute + st.relative
+    resolved = st.absolute_resolved + st.relative_resolved
+    cycles = len(index.cycles())
+    return (f"project imports resolved: {resolved}/{total}"
+            + (f", {cycles} import cycle{'s' if cycles != 1 else ''}" if cycles else ""))
+
+
 class PythonAstEngine(Engine):
     name = ENGINE
+    scan_detail = ""
+    last_index: Optional[ProjectIndex] = None
 
     def rules(self) -> Sequence[Rule]:
         return _RULES
@@ -2166,6 +2230,7 @@ class PythonAstEngine(Engine):
         errors: List[str] = []
         modules: List[_Module] = []
         project = _Project()
+        parsed: List[Tuple[SourceFile, ast.Module]] = []
         for source in files:
             try:
                 with warnings.catch_warnings():
@@ -2176,8 +2241,22 @@ class PythonAstEngine(Engine):
             except (SyntaxError, ValueError, RecursionError, MemoryError) as exc:
                 errors.append(f"{source.rel_path}: could not parse ({exc.__class__.__name__}: {exc})")
                 continue
+            parsed.append((source, tree))
+        index = ProjectIndex([f.rel_path for f in files], _scan_root(files))
+        for source, tree in parsed:
             try:
-                module = _Module.build(source, tree)
+                index.add_imports(source.rel_path, tree)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(_internal_error(source.rel_path, None, exc, "imports not indexed"))
+        try:
+            index.finish()
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"import index incomplete (internal error: {exc.__class__.__name__}: {exc})")
+        self.last_index = index
+        self.scan_detail = _index_detail(index)
+        for source, tree in parsed:
+            try:
+                module = _Module.build(source, tree, index)
                 project.add(module)
             except Exception as exc:  # noqa: BLE001
                 errors.append(_internal_error(source.rel_path, None, exc, "file skipped"))

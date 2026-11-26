@@ -137,7 +137,7 @@ def scan(root: Path, targets: Optional[Iterable[Path]] = None, options: Optional
             runs.append(EngineRun(engine.name, "error", f"{exc.__class__.__name__}: {exc}", files=len(chosen)))
             errors.append(f"{engine.name}: {exc.__class__.__name__}: {exc}")
             continue
-        runs.append(EngineRun(engine.name, "ok", detail, files=len(chosen)))
+        runs.append(EngineRun(engine.name, "ok", getattr(engine, "scan_detail", "") or detail, files=len(chosen)))
         findings.extend(found)
         errors.extend(errs)
 
