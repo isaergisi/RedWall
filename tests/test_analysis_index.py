@@ -165,3 +165,26 @@ def test_engine_reports_import_resolution_and_cycles(tmp_path):
     result = scan(tmp_path, options=ScanOptions(engines=["python-ast"]))
     (engine,) = result.engines
     assert engine.detail == "project imports resolved: 2/2, 1 import cycle"
+
+
+def test_helper_returning_a_closure_call_is_not_called_clean(tmp_path):
+    # Once the helper resolves, its summary must not claim the result is clean: the closure reads `path`.
+    findings = _findings(tmp_path, {
+        "pkg/__init__.py": "",
+        "pkg/paths.py": """
+            import os
+
+            def full_path(path):
+                def short():
+                    return os.path.normpath(path)
+                return short()
+        """,
+        "pkg/views.py": """
+            from flask import request
+            from pkg.paths import full_path
+
+            def view():
+                return open(full_path(request.args["f"])).read()
+        """,
+    })
+    assert [(f.path, f.rule_id, f.confidence) for f in findings] == [("pkg/views.py", "RW-PY-PATH", Confidence.HIGH)]

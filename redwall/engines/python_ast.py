@@ -619,6 +619,16 @@ def _mentions_source(fn: ast.AST) -> bool:
     return False
 
 
+def _returns_closure_call(fn: ast.AST, returns: List[Optional[ast.expr]]) -> bool:
+    nested = {n.name for n in _own_nodes(fn) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    nested |= {t.id for n in _own_nodes(fn) if isinstance(n, ast.Assign) and isinstance(n.value, ast.Lambda)
+               for t in n.targets if isinstance(t, ast.Name)}
+    if not nested:
+        return False
+    return any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id in nested
+               for r in returns if r is not None for c in ast.walk(r))
+
+
 class _Project:
     """Function and method definitions across the scanned files."""
 
@@ -696,6 +706,10 @@ class _Project:
             return Summary("propagate")  # returns one of its parameters
         if not _mentions_source(fn) and sum(1 for _ in _own_nodes(fn)) > 400:
             return None  # large helper without sources: default behaviour is close enough
+        if _returns_closure_call(fn, returns):
+            # `return inner()` where inner() reads the parameters from the enclosing scope: a closure
+            # call looks like a call without arguments, so the walk would wrongly call the result clean.
+            return None
         params = [a.arg for a in fn.args.posonlyargs + fn.args.args + fn.args.kwonlyargs
                   if a.arg not in ("self", "cls")]
         plain = _ModuleAnalyzer(module, self, quiet=True).returns_of(fn, {p: _UNKNOWN for p in params})
