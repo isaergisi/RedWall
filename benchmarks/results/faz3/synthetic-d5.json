@@ -1,0 +1,819 @@
+{
+  "cases": [
+    {
+      "id": "s01_three_files",
+      "cwe": "89",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s02_relative_imports",
+      "cwe": "89",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s03_src_layout",
+      "cwe": "78",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s04_init_reexport",
+      "cwe": "78",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s05_factory",
+      "cwe": "22",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s06_inheritance",
+      "cwe": "89",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s07_self_method",
+      "cwe": "78",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s08_sanitizer_other_file",
+      "cwe": "22",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s09_validator_helper",
+      "cwe": "89",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s10_cyclic_import",
+      "cwe": "78",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s11_recursion",
+      "cwe": "22",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s13_fastapi_typed_param",
+      "cwe": "89",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s14_grpc_servicer",
+      "cwe": "78",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    },
+    {
+      "id": "s15_syntax_error_file",
+      "cwe": "78",
+      "expect": "finding",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": true,
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    }
+  ],
+  "uncertain": [
+    {
+      "id": "s12_getattr_dispatch",
+      "cwe": "78",
+      "expect": "uncertain",
+      "tools": {
+        "d4": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        },
+        "d5": {
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "vuln_engines": [
+            "ok"
+          ],
+          "certain_claim": false,
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "safe_engines": [
+            "ok"
+          ]
+        }
+      }
+    }
+  ],
+  "metrics": {
+    "d4": {
+      "file": {
+        "tp": 9,
+        "fp": 3,
+        "tn": 11,
+        "fn": 5,
+        "precision": 0.75,
+        "recall": 0.643,
+        "f1": 0.692
+      },
+      "vuln": {
+        "tp": 9,
+        "fp": 3,
+        "tn": 11,
+        "fn": 5,
+        "precision": 0.75,
+        "recall": 0.643,
+        "f1": 0.692
+      },
+      "exact": {
+        "tp": 7,
+        "fp": 1,
+        "tn": 13,
+        "fn": 7,
+        "precision": 0.875,
+        "recall": 0.5,
+        "f1": 0.636
+      },
+      "flow": {
+        "tp": 3,
+        "fp": 1,
+        "tn": 13,
+        "fn": 11,
+        "precision": 0.75,
+        "recall": 0.214,
+        "f1": 0.333
+      }
+    },
+    "d5": {
+      "file": {
+        "tp": 14,
+        "fp": 3,
+        "tn": 11,
+        "fn": 0,
+        "precision": 0.824,
+        "recall": 1.0,
+        "f1": 0.903
+      },
+      "vuln": {
+        "tp": 14,
+        "fp": 3,
+        "tn": 11,
+        "fn": 0,
+        "precision": 0.824,
+        "recall": 1.0,
+        "f1": 0.903
+      },
+      "exact": {
+        "tp": 14,
+        "fp": 1,
+        "tn": 13,
+        "fn": 0,
+        "precision": 0.933,
+        "recall": 1.0,
+        "f1": 0.966
+      },
+      "flow": {
+        "tp": 13,
+        "fp": 1,
+        "tn": 13,
+        "fn": 1,
+        "precision": 0.929,
+        "recall": 0.929,
+        "f1": 0.929
+      }
+    }
+  }
+}
