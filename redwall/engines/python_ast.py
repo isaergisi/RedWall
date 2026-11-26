@@ -593,6 +593,23 @@ class Summary:
     value: Any = NOVALUE          # for "const" with a single literal
     safe_for: FrozenSet[str] = frozenset()
     note: str = ""
+    ret_types: FrozenSet[str] = frozenset()  # project classes the return value is an instance of
+
+
+@dataclass(frozen=True)
+class CallTarget:
+    """What a call site resolves to (phase 3 D4).
+
+    ``exact``: the callee is known (a function, a method of a known class, a static call). Not exact: a
+    method found by its bare name, or several candidate overrides; findings that depend on it say so.
+    """
+
+    defs: Tuple[Tuple["_Module", ast.AST], ...]
+    exact: bool
+    label: str  # how it was resolved, for traces and debugging
+
+
+_CLS = "cls:"  # Flow tag prefix: the value is an instance of this project class
 
 
 def _own_nodes(fn: ast.AST) -> List[ast.AST]:
@@ -619,6 +636,10 @@ def _mentions_source(fn: ast.AST) -> bool:
     return False
 
 
+def _is_staticmethod(fn: ast.AST) -> bool:
+    return any((_dotted(d) or "").endswith("staticmethod") for d in getattr(fn, "decorator_list", []))
+
+
 def _returns_closure_call(fn: ast.AST, returns: List[Optional[ast.expr]]) -> bool:
     nested = {n.name for n in _own_nodes(fn) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
     nested |= {t.id for n in _own_nodes(fn) if isinstance(n, ast.Assign) and isinstance(n.value, ast.Lambda)
@@ -637,6 +658,13 @@ class _Project:
         self.methods: Dict[str, List[Tuple["_Module", ast.AST]]] = {}  # bare method name -> defs
         self.classes: Set[str] = set()
         self.by_module: Dict[str, "_Module"] = {}  # every importable name -> module
+        self.class_defs: Dict[str, Tuple["_Module", ast.ClassDef]] = {}  # every importable name -> class
+        self.class_name: Dict[int, str] = {}       # id(ClassDef) -> canonical qualified name
+        self.class_methods: Dict[str, Dict[str, Tuple["_Module", ast.AST]]] = {}  # canonical -> own methods
+        self.method_owner: Dict[int, str] = {}     # id(method def) -> canonical class name
+        self._bases: Dict[str, List[str]] = {}
+        self._mro: Dict[str, List[str]] = {}
+        self._subclasses: Optional[Dict[str, List[str]]] = None
         self._cache: Dict[int, Optional[Summary]] = {}
         self._busy: Set[int] = set()
         self.errors: List[str] = []
@@ -650,9 +678,18 @@ class _Project:
                 for name in names:
                     self.functions.setdefault(f"{name}.{node.name}", (module, node))
             elif isinstance(node, ast.ClassDef):
-                self.classes.add(f"{module.qualname}.{node.name}")
+                canonical = f"{module.qualname}.{node.name}"
+                self.classes.add(canonical)
+                self.class_name[id(node)] = canonical
+                for name in names:
+                    self.class_defs.setdefault(f"{name}.{node.name}", (module, node))
+                own = self.class_methods.setdefault(canonical, {})
                 for item in node.body:
-                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and not item.name.startswith("__"):
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        own.setdefault(item.name, (module, item))
+                        self.method_owner[id(item)] = canonical
+                        if item.name.startswith("__"):
+                            continue
                         for name in names:
                             self.functions.setdefault(f"{name}.{node.name}.{item.name}", (module, item))
                         self.methods.setdefault(item.name, []).append((module, item))
@@ -673,6 +710,99 @@ class _Project:
         if module is not None and cls in module.aliases:
             return self.find(f"{module.aliases[cls]}.{attr}", _depth + 1)
         return None
+
+    def find_class(self, dotted: str, _depth: int = 0) -> Optional[str]:
+        """Canonical name of the project class ``dotted`` refers to (re-exports followed)."""
+        hit = self.class_defs.get(dotted)
+        if hit is not None:
+            return self.class_name.get(id(hit[1]))
+        if _depth > 5 or "." not in dotted:
+            return None
+        head, _, attr = dotted.rpartition(".")
+        module = self.by_module.get(head)
+        if module is not None and attr in module.aliases and module.aliases[attr] != dotted:
+            return self.find_class(module.aliases[attr], _depth + 1)
+        return None
+
+    def bases(self, cls: str) -> List[str]:
+        if cls not in self._bases:
+            out: List[str] = []
+            hit = self.class_defs.get(cls)
+            if hit is not None:
+                module, node = hit
+                for b in node.bases:
+                    dotted = _dotted(b)
+                    if not dotted:
+                        continue
+                    head, _, rest = dotted.partition(".")
+                    full = module.aliases[head] + (f".{rest}" if rest else "") if head in module.aliases \
+                        else f"{module.qualname}.{dotted}"
+                    found = self.find_class(full) or self.find_class(dotted)
+                    if found and found != cls:
+                        out.append(found)
+            self._bases[cls] = out
+        return self._bases[cls]
+
+    def mro(self, cls: str) -> List[str]:
+        """Method resolution order (depth-first, left to right, duplicates dropped: close to C3 for
+        the class hierarchies seen in practice)."""
+        if cls not in self._mro:
+            self._mro[cls] = [cls]  # guards against cyclic bases while computing
+            order: List[str] = [cls]
+            for b in self.bases(cls):
+                for c in self.mro(b):
+                    if c not in order:
+                        order.append(c)
+            self._mro[cls] = order[:32]
+        return self._mro[cls]
+
+    def class_method(self, cls: str, method: str, skip_first: bool = False) -> Optional[Tuple["_Module", ast.AST]]:
+        for c in self.mro(cls)[1 if skip_first else 0:]:
+            hit = self.class_methods.get(c, {}).get(method)
+            if hit is not None:
+                return hit
+        return None
+
+    def overrides(self, cls: str, method: str) -> List[Tuple["_Module", ast.AST]]:
+        """Definitions of ``method`` in subclasses of ``cls`` (dynamic dispatch on ``self``)."""
+        if self._subclasses is None:
+            subs: Dict[str, List[str]] = {}
+            for c in self.class_methods:
+                for b in self.bases(c):
+                    subs.setdefault(b, []).append(c)
+            self._subclasses = subs
+        out: List[Tuple["_Module", ast.AST]] = []
+        seen: Set[str] = set()
+        stack = list(self._subclasses.get(cls, []))
+        while stack and len(seen) < 64:
+            c = stack.pop()
+            if c in seen:
+                continue
+            seen.add(c)
+            hit = self.class_methods.get(c, {}).get(method)
+            if hit is not None:
+                out.append(hit)
+            stack.extend(self._subclasses.get(c, []))
+        return out
+
+    def combine(self, defs: Sequence[Tuple["_Module", ast.AST]]) -> Optional[Summary]:
+        """One summary for several candidate callees (all must be summarised)."""
+        sums = [self.summary(m, fn) for m, fn in defs]
+        if not sums or any(s is None for s in sums):
+            return None
+        if len(sums) == 1:
+            return sums[0]
+        kinds = {s.kind for s in sums}  # type: ignore[union-attr]
+        types = frozenset().union(*(s.ret_types for s in sums))  # type: ignore[union-attr]
+        if "source" in kinds:
+            return next(s for s in sums if s and s.kind == "source")
+        if "propagate" in kinds:
+            return Summary("propagate", safe_for=_intersect([s.safe_for for s in sums if s and s.kind == "propagate"]),
+                           ret_types=types)
+        if kinds == {"const"}:
+            vals = {repr(s.value) for s in sums if s}
+            return Summary("const", value=sums[0].value if len(vals) == 1 else NOVALUE)  # type: ignore[union-attr]
+        return Summary("clean", ret_types=types)
 
     def summary(self, module: "_Module", fn: ast.AST) -> Optional[Summary]:
         key = id(fn)
@@ -715,10 +845,11 @@ class _Project:
         plain = _ModuleAnalyzer(module, self, quiet=True).returns_of(fn, {p: _UNKNOWN for p in params})
         if not plain:
             return Summary("const", value=None)
+        types = frozenset(t[len(_CLS):] for f in plain for t in f.tags if t.startswith(_CLS))
         tainted = [f for f in plain if f.level == TAINTED]
         if tainted:
             notes = [s.note for s in tainted[0].steps if "enters via" in s.note]
-            return Summary("source", note=notes[0] if notes else "")
+            return Summary("source", note=notes[0] if notes else "", ret_types=types)
         if all(f.level == CONST for f in plain):
             vals = {repr(f.value) for f in plain}
             return Summary("const", value=plain[0].value if len(vals) == 1 else NOVALUE)
@@ -726,8 +857,8 @@ class _Project:
         through = _ModuleAnalyzer(module, self, quiet=True).returns_of(fn, {p: marker for p in params})
         hit = [f for f in through if f.level == TAINTED]
         if hit:
-            return Summary("propagate", safe_for=_join(hit).safe_for)
-        return Summary("clean")
+            return Summary("propagate", safe_for=_join(hit).safe_for, ret_types=types)
+        return Summary("clean", ret_types=types)
 
     def lookup_function(self, name: str) -> Optional[Summary]:
         hit = self.functions.get(name)
@@ -743,18 +874,7 @@ class _Project:
         defs = self.methods.get(method, [])
         if not defs or len(defs) > 4:
             return None
-        sums = [self.summary(m, fn) for m, fn in defs]
-        if any(s is None for s in sums):
-            return None
-        kinds = {s.kind for s in sums}  # type: ignore[union-attr]
-        if "source" in kinds:
-            return next(s for s in sums if s and s.kind == "source")
-        if "propagate" in kinds:
-            return Summary("propagate", safe_for=_intersect([s.safe_for for s in sums if s and s.kind == "propagate"]))
-        if kinds == {"const"}:
-            vals = {repr(s.value) for s in sums if s}
-            return Summary("const", value=sums[0].value if len(vals) == 1 else NOVALUE)  # type: ignore[union-attr]
-        return Summary("clean")
+        return self.combine(defs)
 
 
 @dataclass
@@ -811,6 +931,9 @@ class _ModuleAnalyzer:
         self.returns: Optional[List[Flow]] = None
         self._normalised_vars: Set[str] = set()
         self.errors: List[str] = []
+        self.class_stack: List[str] = []   # canonical names of the classes being walked
+        self.frames: List[str] = []        # "class" / "def", innermost last
+        self.last_target: Optional[CallTarget] = None
 
     def _step(self, line: int, note: str, kind: str, function: Optional[str] = None) -> TraceStep:
         """A trace step in this module, tagged with its file, enclosing function and kind."""
@@ -1115,21 +1238,39 @@ class _ModuleAnalyzer:
                 body = body.elts[0]
             return self.flow(body, scope) if body is not None else _CONST
 
+        # Instances of project classes carry their class (method calls on them resolve).
+        cls = self._class_named(name)
+        if cls is not None:
+            tainted = [f for f in arg_flows if f.level == TAINTED]
+            return self._instance(cls, base=_join(tainted) if tainted else _UNKNOWN)
+
         # Project helpers (summaries).
         summary = self._summary_for(node, name, method, scope)
+        if summary is not None and summary.ret_types and summary.kind in ("clean", "propagate"):
+            out = self._summary_flow(node, name, method, summary, arg_flows)
+            for t in sorted(summary.ret_types)[:4]:
+                out = self._instance(t, base=out)
+            return out
         if summary is not None:
-            if summary.kind == "source":
-                return Flow(TAINTED, (self._step(node.lineno, f"user input enters via `{name or method}()`"
-                                                 + (f" ({summary.note})" if summary.note else ""), "source"),))
-            if summary.kind == "const":
-                return _const(summary.value) if summary.value is not NOVALUE else _CONST
-            if summary.kind == "propagate":
-                j = _join([f for f in arg_flows if f.level == TAINTED] or [_UNKNOWN])
-                if j.level == TAINTED:
-                    return replace(j, safe_for=j.safe_for | summary.safe_for, elems=None, keys=None)
-                return _UNKNOWN
-            return _UNKNOWN
+            return self._summary_flow(node, name, method, summary, arg_flows)
+        return self._default_call_flow(node, name, method, args, arg_flows, scope)
 
+    def _summary_flow(self, node: ast.Call, name: str, method: str, summary: Summary, arg_flows: List[Flow]) -> Flow:
+        if summary.kind == "source":
+            return Flow(TAINTED, (self._step(node.lineno, f"user input enters via `{name or method}()`"
+                                             + (f" ({summary.note})" if summary.note else ""), "source"),))
+        if summary.kind == "const":
+            return _const(summary.value) if summary.value is not NOVALUE else _CONST
+        if summary.kind == "propagate":
+            j = _join([f for f in arg_flows if f.level == TAINTED] or [_UNKNOWN])
+            if j.level == TAINTED:
+                return replace(j, safe_for=j.safe_for | summary.safe_for, elems=None, keys=None)
+            return _UNKNOWN
+        return _UNKNOWN
+
+    def _default_call_flow(self, node: ast.Call, name: str, method: str, args: List[Flow], arg_flows: List[Flow],
+                           scope: Scope) -> Flow:
+        """A call that is neither a known library function nor a summarised project function."""
         if name.startswith(kb.PURE_PREFIXES) and self._is_module_ref(node.func, scope) \
                 and all(f.level == CONST for f in arg_flows):
             return _CONST
@@ -1220,16 +1361,9 @@ class _ModuleAnalyzer:
         return _collapse(recv)
 
     def _summary_for(self, node: ast.Call, name: str, method: str, scope: Scope) -> Optional[Summary]:
-        target = self.project.find(name) if name else None
-        if target is None and name:
-            target = self.project.find(f"{self.module.qualname}.{name}")
-        if target is not None:
-            return self.project.lookup_function(target)
-        if method and isinstance(node.func, ast.Attribute) and not self._is_module_ref(node.func, scope):
-            receiver = self.flow(node.func.value, scope)
-            if receiver.level != TAINTED and receiver.elems is None and receiver.keys is None:
-                return self.project.lookup_method(method)
-        return None
+        target = self.resolve_call(node, name, method, scope)
+        self.last_target = target
+        return self.project.combine(target.defs) if target is not None else None
 
     # -- statements ----------------------------------------------------------
 
@@ -1251,8 +1385,18 @@ class _ModuleAnalyzer:
         """Return flows of ``fn`` when its parameters have the given flows (for summaries)."""
         self.returns = []
         scope = Scope(params)
+        owner = self.project.method_owner.get(id(fn))
+        first = (fn.args.posonlyargs + fn.args.args)[:1]  # type: ignore[attr-defined]
+        if owner and first and not _is_staticmethod(fn):
+            scope.setdefault(first[0].arg, self._instance(owner, receiver=True))
         scope.setdefault("self", _UNKNOWN)
+        for a in fn.args.posonlyargs + fn.args.args + fn.args.kwonlyargs:  # type: ignore[attr-defined]
+            annotated = self._annotation_class(a.annotation) if a.arg in params else None
+            if annotated:
+                scope[a.arg] = self._instance(annotated, base=scope[a.arg])
         self.route_stack.append(False)
+        if owner:
+            self.class_stack.append(owner)  # super() inside the method
         self._walk_body(fn.body, scope)
         return self.returns
 
@@ -1424,6 +1568,11 @@ class _ModuleAnalyzer:
                         # Flask/Werkzeug converters: <int:id>, <float:x>, <uuid:u>
                         typed |= set(_TYPED_ROUTE_PARAM.findall(a.value))
         args = fn.args  # type: ignore[attr-defined]
+        positional = args.posonlyargs + args.args
+        if self.frames and self.frames[-1] == "class" and self.class_stack and positional \
+                and not _is_staticmethod(fn):
+            # The first parameter of a method is an instance of the class (or the class itself).
+            scope[positional[0].arg] = self._instance(self.class_stack[-1], receiver=True)
         for a in args.posonlyargs + args.args + args.kwonlyargs:
             if a.arg in ("self", "cls"):
                 continue
@@ -1433,8 +1582,74 @@ class _ModuleAnalyzer:
                 scope[a.arg] = Flow(TAINTED, (self._step(fn.lineno, f"route parameter `{a.arg}` comes from the URL", "source",  # type: ignore[attr-defined]
                                                           function=".".join(self.func_stack + [fn.name])),))  # type: ignore[attr-defined]
             else:
-                scope[a.arg] = _UNKNOWN
+                annotated = self._annotation_class(a.annotation)
+                scope[a.arg] = self._instance(annotated) if annotated else _UNKNOWN
         return scope, is_route
+
+    # -- call resolution (phase 3 D4) ----------------------------------------
+
+    @staticmethod
+    def _instance(cls: str, receiver: bool = False, base: Flow = _UNKNOWN) -> Flow:
+        tags = {_CLS + cls} | ({"receiver"} if receiver else set())
+        return replace(base, tags=base.tags | frozenset(tags))
+
+    def _class_named(self, name: str) -> Optional[str]:
+        if not name:
+            return None
+        return self.project.find_class(name) or self.project.find_class(f"{self.module.qualname}.{name}")
+
+    def _annotation_class(self, node: Optional[ast.expr]) -> Optional[str]:
+        if node is None:
+            return None
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            try:
+                node = ast.parse(node.value, mode="eval").body
+            except SyntaxError:
+                return None
+        return self._class_named(self.resolve(node) or "")
+
+    def resolve_call(self, node: ast.Call, name: str, method: str, scope: Scope) -> Optional[CallTarget]:
+        """The project definition(s) a call can reach, or None when it is not resolvable statically."""
+        project = self.project
+        if name:
+            key = project.find(name) or project.find(f"{self.module.qualname}.{name}")
+            if key is not None:
+                return CallTarget((project.functions[key],), True, f"function {key}")
+            head, _, attr = name.rpartition(".")
+            cls = self._class_named(head) if head and attr else None
+            if cls is not None:  # Class.method(...), the method inherited from a base class
+                hit = project.class_method(cls, attr)
+                if hit is not None:
+                    return CallTarget((hit,), True, f"method {cls}.{attr}")
+        if not method or not isinstance(node.func, ast.Attribute) or self._is_module_ref(node.func, scope):
+            return None
+        recv_node = node.func.value
+        if isinstance(recv_node, ast.Call) and isinstance(recv_node.func, ast.Name) and recv_node.func.id == "super" \
+                and self.class_stack:
+            hit = project.class_method(self.class_stack[-1], method, skip_first=True)
+            return CallTarget((hit,), True, f"super().{method}") if hit is not None else None
+        receiver = self.flow(recv_node, scope)
+        classes = sorted(t[len(_CLS):] for t in receiver.tags if t.startswith(_CLS))
+        if classes:
+            defs: List[Tuple[_Module, ast.AST]] = []
+            for cls in classes[:4]:
+                hit = project.class_method(cls, method)
+                if hit is not None and hit not in defs:
+                    defs.append(hit)
+                if "receiver" in receiver.tags:
+                    # self.m(): a subclass may override m (dynamic dispatch).
+                    defs.extend(d for d in project.overrides(cls, method) if d not in defs)
+            if defs:
+                exact = len(defs) == 1 and len(classes) == 1
+                return CallTarget(tuple(defs), exact, f"method {'/'.join(classes)}.{method}")
+        if receiver.level == TAINTED and not classes:
+            return None  # a method of user input (a string, a dict): not a project method
+        if receiver.elems is not None or receiver.keys is not None or method in project._BUILTIN_METHODS:
+            return None
+        defs = project.methods.get(method, [])
+        if defs and len(defs) <= 4:
+            return CallTarget(tuple(defs), False, f"any method named {method}")
+        return None
 
     def _walk_body(self, body: Sequence[ast.stmt], scope: Scope) -> bool:
         """Walk statements, updating ``scope`` in place. Returns True if the path always exits."""
@@ -1459,6 +1674,7 @@ class _ModuleAnalyzer:
                 self.returns = None  # nested defs do not contribute to the outer summary
             self.func_stack.append(stmt.name)
             self.route_stack.append(is_route)
+            self.frames.append("def")
             saved_loops, self.loops = self.loops, []
             try:
                 self._walk_body(stmt.body, inner)
@@ -1470,16 +1686,21 @@ class _ModuleAnalyzer:
             finally:
                 self.func_stack.pop()
                 self.route_stack.pop()
+                self.frames.pop()
                 self.loops = saved_loops
                 self.returns = saved_returns
             scope.pop(stmt.name, None)
             return False
         if isinstance(stmt, ast.ClassDef):
             self.func_stack.append(stmt.name)
+            self.frames.append("class")
+            self.class_stack.append(self.project.class_name.get(id(stmt), f"{self.module.qualname}.{stmt.name}"))
             try:
                 self._walk_body(stmt.body, Scope(scope))
             finally:
                 self.func_stack.pop()
+                self.frames.pop()
+                self.class_stack.pop()
             return False
 
         if isinstance(stmt, ast.Assign):
