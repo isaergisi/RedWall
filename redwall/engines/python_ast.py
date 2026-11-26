@@ -169,6 +169,7 @@ class Flow:
     safe_for: FrozenSet[str] = frozenset()     # sink kinds this (non-constant) value is cleared for
     tags: FrozenSet[str] = frozenset()         # object facts, e.g. "xxe-parser"
     origin: FrozenSet[str] = frozenset()       # variables this value was derived from
+    marks: FrozenSet[str] = frozenset()        # parameters this value came from (summary walks only)
 
     def safe(self, kind: str) -> bool:
         return kb.ALL in self.safe_for or kind in self.safe_for
@@ -232,8 +233,9 @@ def _join(flows: Iterable[Flow], default: Flow = _CONST) -> Flow:
         tainted = [f for f in flows if f.level == TAINTED]
         safe = _intersect([f.safe_for for f in tainted])
         worst = min(tainted, key=lambda f: (len(f.safe_for) if kb.ALL not in f.safe_for else 99))
+        marks = frozenset().union(*(f.marks for f in tainted))
         return Flow(TAINTED, worst.steps, safe_for=safe, tags=tags, origin=origin,
-                    elems=_join_elems(flows), keys=_join_keys(flows))
+                    elems=_join_elems(flows), keys=_join_keys(flows), marks=marks)
     if top == CONST:
         v0 = flows[0].value
         same = v0 is not NOVALUE and all(
@@ -272,7 +274,7 @@ def _container(elems: Optional[Tuple[Flow, ...]] = None,
         parts += [_const(k) for k, _ in keys if isinstance(k, str)]
     inner = _join(parts) if parts else _CONST
     return Flow(inner.level, inner.steps, safe_for=inner.safe_for, elems=elems, keys=keys,
-                tags=tags | inner.tags)
+                tags=tags | inner.tags, marks=inner.marks)
 
 
 def _collapse(flow: Flow, *more: Flow) -> Flow:
@@ -587,6 +589,25 @@ _PERMISSIVE_REGEX = re.compile(r"\.\*|\.\+|\\S|\[\^")
 # --------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class ParamSink:
+    """A parameter of a project function reaches a sink inside it (phase 3 D5).
+
+    ``site`` is where the sink is: (path, line, col, end_line, snippet, function). None means the
+    parameter goes to the sink unchanged (a thin wrapper such as ``def run(cmd): os.system(cmd)``);
+    the finding is then reported where the wrapper is called, which is where the value is chosen.
+    """
+
+    param: str
+    rule_id: str
+    kind: str
+    sink: str
+    message: str
+    steps: Tuple[TraceStep, ...]
+    site: Optional[Tuple[str, int, int, Optional[int], str, Optional[str]]]
+    exact: bool = True
+
+
 @dataclass
 class Summary:
     kind: str                     # "source", "propagate", "const", "clean"
@@ -594,6 +615,34 @@ class Summary:
     safe_for: FrozenSet[str] = frozenset()
     note: str = ""
     ret_types: FrozenSet[str] = frozenset()  # project classes the return value is an instance of
+    # Summary v2 (phase 3 D5)
+    returns_from: Optional[FrozenSet[str]] = None  # parameters that reach the return value (None: unknown)
+    param_sinks: Tuple[ParamSink, ...] = ()
+    validates: Tuple[Tuple[str, FrozenSet[str]], ...] = ()  # a true result means the parameter passed a check
+    walked: bool = False  # the v2 walk ran: param_sinks is complete
+
+
+# Sink kind of each taint rule (what a sanitizer must be safe for).
+_RULE_KIND = {
+    "RW-PY-SQLI": "sqli", "RW-PY-CMDI": "cmdi", "RW-PY-CODEI": "codeinj", "RW-PY-DESER": "deser",
+    "RW-PY-SSTI": "ssti", "RW-PY-XSS": "xss", "RW-PY-XSS-RESPONSE": "xss", "RW-PY-OPENREDIRECT": "redirect",
+    "RW-PY-PATH": "path", "RW-PY-SSRF": "ssrf", "RW-PY-LDAPI": "ldap", "RW-PY-XPATHI": "xpathi",
+    "RW-PY-TRUSTBOUND": "trustbound",
+}
+_BOTTOM = Summary("const")  # starting guess for a recursive function
+_SUMMARY_BUDGET = 400  # summaries computed under one outermost summary before giving up on the rest
+_MAX_PARAM_SINKS = 16
+_MAX_TRACE = 24
+_PARAM_WALK_NODES = 2500  # larger functions keep the v1 summary only
+
+
+def _param_marker(name: str) -> Flow:
+    return Flow(TAINTED, (TraceStep(0, f"parameter `{name}`", kind="param"),), marks=frozenset({name}))
+
+
+def _short_trace(steps: Sequence[TraceStep]) -> Tuple[TraceStep, ...]:
+    steps = tuple(s for s in steps if s.line > 0)
+    return steps if len(steps) <= _MAX_TRACE else steps[:8] + steps[-(_MAX_TRACE - 8):]
 
 
 @dataclass(frozen=True)
@@ -607,6 +656,7 @@ class CallTarget:
     defs: Tuple[Tuple["_Module", ast.AST], ...]
     exact: bool
     label: str  # how it was resolved, for traces and debugging
+    bound: bool = True  # the call passes the instance implicitly (obj.m(x)); False for Class.m(obj, x)
 
 
 _CLS = "cls:"  # Flow tag prefix: the value is an instance of this project class
@@ -640,6 +690,10 @@ def _is_staticmethod(fn: ast.AST) -> bool:
     return any((_dotted(d) or "").endswith("staticmethod") for d in getattr(fn, "decorator_list", []))
 
 
+def _is_classmethod(fn: ast.AST) -> bool:
+    return any((_dotted(d) or "").endswith("classmethod") for d in getattr(fn, "decorator_list", []))
+
+
 def _returns_closure_call(fn: ast.AST, returns: List[Optional[ast.expr]]) -> bool:
     nested = {n.name for n in _own_nodes(fn) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
     nested |= {t.id for n in _own_nodes(fn) if isinstance(n, ast.Assign) and isinstance(n.value, ast.Lambda)
@@ -667,6 +721,13 @@ class _Project:
         self._subclasses: Optional[Dict[str, List[str]]] = None
         self._cache: Dict[int, Optional[Summary]] = {}
         self._busy: Set[int] = set()
+        self._stack: List[int] = []                       # summaries being computed, outermost first
+        self._provisional: Dict[int, Optional[Summary]] = {}  # recursion: the current guess
+        self._recursed: Set[int] = set()
+        self._tentative: Set[int] = set()                 # computed from a guess: not cached
+        self._tent_cache: Dict[int, Tuple[int, Optional[Summary]]] = {}  # ... except while the guesses hold
+        self._gen = 0                                     # bumped whenever a guess changes
+        self._work = 0                                    # walks under the current outermost summary
         self.errors: List[str] = []
 
     def add(self, module: "_Module") -> None:
@@ -788,7 +849,7 @@ class _Project:
     def combine(self, defs: Sequence[Tuple["_Module", ast.AST]]) -> Optional[Summary]:
         """One summary for several candidate callees (all must be summarised)."""
         sums = [self.summary(m, fn) for m, fn in defs]
-        if not sums or any(s is None for s in sums):
+        if not sums or any(s is None or s.kind == "default" for s in sums):
             return None
         if len(sums) == 1:
             return sums[0]
@@ -808,21 +869,88 @@ class _Project:
         key = id(fn)
         if key in self._cache:
             return self._cache[key]
+        hit = self._tent_cache.get(key)
+        if hit is not None and hit[0] == self._gen and key not in self._busy:
+            return hit[1]
+        if not self._stack:
+            self._work = 0
+        elif self._work > _SUMMARY_BUDGET:
+            return None  # deep mutual recursion: the default behaviour for what is left
         if key in self._busy:
-            return None
+            # Recursion: answer with the current guess (first "returns a constant, reaches no sink") and
+            # let the outer computation iterate until the summary stops changing.
+            self._recursed.add(key)
+            self._tentative.update(self._stack[self._stack.index(key) + 1:])
+            return self._provisional.get(key, _BOTTOM)
         self._busy.add(key)
+        self._stack.append(key)
         try:
+            self._work += 1
             result = self._summarise(module, fn)
+            for _ in range(3):
+                if key not in self._recursed or result == self._provisional.get(key, _BOTTOM):
+                    break
+                self._recursed.discard(key)
+                self._provisional[key] = result
+                self._gen += 1
+                self._work += 1
+                result = self._summarise(module, fn)
+            else:
+                if key in self._recursed:
+                    result = None  # no fixed point within the budget: default behaviour
         except Exception as exc:  # noqa: BLE001 - one odd helper must not stop the scan
             # No summary means the default behaviour at every call site, as for an unknown function.
             self.errors.append(_internal_error(module.source.rel_path, fn, exc, "summary skipped"))
             result = None
         finally:
             self._busy.discard(key)
-        self._cache[key] = result
+            self._stack.pop()
+            if self._provisional.pop(key, None) is not None:
+                self._gen += 1
+            self._recursed.discard(key)
+        if key in self._tentative:
+            self._tentative.discard(key)  # depends on an unfinished guess further out: recompute later
+            self._tent_cache[key] = (self._gen, result)
+        else:
+            self._cache[key] = result
         return result
 
     def _summarise(self, module: "_Module", fn: Any) -> Optional[Summary]:
+        params = [a.arg for a in fn.args.posonlyargs + fn.args.args + fn.args.kwonlyargs
+                  if a.arg not in ("self", "cls")]
+        walk = self._param_walk(module, fn, params)
+        base = self._summarise_returns(module, fn, params, walk[2] if walk else None)
+        if walk is None:
+            return base
+        sinks, validates, through = walk
+        returns_from = frozenset().union(*(f.marks for f in through if f.level == TAINTED)) if through else frozenset()
+        if base is None:
+            if not sinks and not validates:
+                return None
+            base = Summary("default")  # no usable return summary: the call keeps the default behaviour
+        return replace(base, param_sinks=sinks, validates=validates, walked=True,
+                       returns_from=returns_from if base.kind == "propagate" else None)
+
+    def _param_walk(self, module: "_Module", fn: Any, params: List[str]
+                    ) -> Optional[Tuple[Tuple[ParamSink, ...], Tuple[Tuple[str, FrozenSet[str]], ...], List[Flow]]]:
+        """Summary v2: walk the body once with every parameter marked, recording which parameters reach
+        a sink inside (param_sinks), which reach the return value, and which a true result vouches for."""
+        own = _own_nodes(fn)
+        if not params or len(own) > _PARAM_WALK_NODES:
+            return None
+        analyzer = _ModuleAnalyzer(module, self, quiet=True)
+        analyzer.collector = {}
+        analyzer.accepts = {}
+        analyzer.params = tuple(params)
+        analyzer.markers = {p: _param_marker(p) for p in params}
+        through = analyzer.returns_of(fn, dict(analyzer.markers))
+        sinks = tuple(list(analyzer.collector.values())[:_MAX_PARAM_SINKS])
+        validates = tuple(sorted((p, frozenset(k)) for p, k in analyzer.accepts.items() if k))
+        return sinks, validates, through
+
+    def _summarise_returns(self, module: "_Module", fn: Any, params: List[str],
+                           through: Optional[List[Flow]]) -> Optional[Summary]:
+        """Summary v1: what the return value is (source, propagated argument, constant, clean)."""
         # Cheap syntactic cases first: most helpers need no data-flow walk.
         returns = [n.value for n in _own_nodes(fn) if isinstance(n, ast.Return)]
         if any(isinstance(n, (ast.Yield, ast.YieldFrom)) for n in _own_nodes(fn)):
@@ -840,8 +968,6 @@ class _Project:
             # `return inner()` where inner() reads the parameters from the enclosing scope: a closure
             # call looks like a call without arguments, so the walk would wrongly call the result clean.
             return None
-        params = [a.arg for a in fn.args.posonlyargs + fn.args.args + fn.args.kwonlyargs
-                  if a.arg not in ("self", "cls")]
         plain = _ModuleAnalyzer(module, self, quiet=True).returns_of(fn, {p: _UNKNOWN for p in params})
         if not plain:
             return Summary("const", value=None)
@@ -853,8 +979,8 @@ class _Project:
         if all(f.level == CONST for f in plain):
             vals = {repr(f.value) for f in plain}
             return Summary("const", value=plain[0].value if len(vals) == 1 else NOVALUE)
-        marker = Flow(TAINTED, (TraceStep(0, "argument"),))
-        through = _ModuleAnalyzer(module, self, quiet=True).returns_of(fn, {p: marker for p in params})
+        if through is None:
+            through = _ModuleAnalyzer(module, self, quiet=True).returns_of(fn, {p: _param_marker(p) for p in params})
         hit = [f for f in through if f.level == TAINTED]
         if hit:
             return Summary("propagate", safe_for=_join(hit).safe_for, ret_types=types)
@@ -924,7 +1050,7 @@ class _ModuleAnalyzer:
         self.aliases = module.aliases
         self.project = project
         self.quiet = quiet
-        self.findings: Dict[Tuple[str, int, int], Finding] = {}
+        self.findings: Dict[Tuple[str, str, int, int], Finding] = {}
         self.func_stack: List[str] = []
         self.route_stack: List[bool] = []
         self.loops: List[_LoopFrame] = []
@@ -934,6 +1060,11 @@ class _ModuleAnalyzer:
         self.class_stack: List[str] = []   # canonical names of the classes being walked
         self.frames: List[str] = []        # "class" / "def", innermost last
         self.last_target: Optional[CallTarget] = None
+        # Summary v2 walks (phase 3 D5): parameters are marked, sink hits and accepting returns recorded.
+        self.collector: Optional[Dict[Tuple[str, str, Any], ParamSink]] = None
+        self.accepts: Optional[Dict[str, Optional[Set[str]]]] = None
+        self.params: Tuple[str, ...] = ()
+        self.markers: Dict[str, Flow] = {}  # the parameter's own value: reaching a sink as is = a thin wrapper
 
     def _step(self, line: int, note: str, kind: str, function: Optional[str] = None) -> TraceStep:
         """A trace step in this module, tagged with its file, enclosing function and kind."""
@@ -1246,6 +1377,14 @@ class _ModuleAnalyzer:
 
         # Project helpers (summaries).
         summary = self._summary_for(node, name, method, scope)
+        target = self.last_target
+        if summary is not None and summary.kind == "propagate" and summary.returns_from is not None \
+                and target is not None and len(target.defs) == 1 \
+                and not any(isinstance(a, ast.Starred) for a in node.args) \
+                and not any(k.arg is None for k in node.keywords):
+            # Only the arguments whose parameters reach the return value make it tainted.
+            passed = self._param_args(node, target.defs[0][1], target.bound)
+            arg_flows = [self.flow(e, scope) for p, e in passed.items() if p in summary.returns_from]
         if summary is not None and summary.ret_types and summary.kind in ("clean", "propagate"):
             out = self._summary_flow(node, name, method, summary, arg_flows)
             for t in sorted(summary.ret_types)[:4]:
@@ -1614,13 +1753,18 @@ class _ModuleAnalyzer:
         if name:
             key = project.find(name) or project.find(f"{self.module.qualname}.{name}")
             if key is not None:
-                return CallTarget((project.functions[key],), True, f"function {key}")
+                fn = project.functions[key][1]
+                return CallTarget((project.functions[key],), True, f"function {key}", bound=_is_classmethod(fn))
+            cls = self._class_named(name)
+            if cls is not None:  # Class(...): the constructor
+                hit = project.class_method(cls, "__init__")
+                return CallTarget((hit,), True, f"constructor {cls}") if hit is not None else None
             head, _, attr = name.rpartition(".")
             cls = self._class_named(head) if head and attr else None
             if cls is not None:  # Class.method(...), the method inherited from a base class
                 hit = project.class_method(cls, attr)
                 if hit is not None:
-                    return CallTarget((hit,), True, f"method {cls}.{attr}")
+                    return CallTarget((hit,), True, f"method {cls}.{attr}", bound=_is_classmethod(hit[1]))
         if not method or not isinstance(node.func, ast.Attribute) or self._is_module_ref(node.func, scope):
             return None
         recv_node = node.func.value
@@ -1740,8 +1884,12 @@ class _ModuleAnalyzer:
             return False
         if isinstance(stmt, ast.Expr):
             self._apply_side_effects(stmt.value, scope)
-            return False
+            # abort()/sys.exit() end the request like a raise (the module docstring's
+            # `if not ok: abort()` guard); this was documented but never wired in.
+            return _always_exits([stmt])
         if isinstance(stmt, ast.Return):
+            if self.accepts is not None and not self.frames:
+                self._note_accepting_return(stmt.value, scope)
             if stmt.value is not None:
                 ret = self.flow(stmt.value, scope)
                 self._check_return(stmt, ret, scope)
@@ -1912,10 +2060,62 @@ class _ModuleAnalyzer:
 
     # -- guards ------------------------------------------------------------
 
+    def _note_accepting_return(self, value: Optional[ast.expr], scope: Scope) -> None:
+        """Validator summaries: for each return that can mean "accepted", which kinds each parameter is
+        known to be safe for there. A parameter is a validated one if every accepting return vouches."""
+        assert self.accepts is not None
+        if value is None or (isinstance(value, ast.Constant) and not value.value):
+            return  # `return False` / `return None` / bare return: the rejecting side
+        if isinstance(value, ast.Constant):
+            if value.value is not True:
+                vouched: Dict[str, Set[str]] = {}  # returns something else: not a yes/no check
+            else:  # `return True` after the checks: what the checks established about each parameter
+                vouched = {p: set(scope[p].safe_for) for p in self.params
+                           if p in scope and scope[p].level == TAINTED and scope[p].safe_for}
+        else:
+            good, _ = self._guard_effects(value, scope)
+            vouched = {p: set(good[p]) for p in self.params if p in good}
+        for p in self.params:
+            prev = self.accepts.get(p, ...)
+            now = vouched.get(p, set())
+            self.accepts[p] = set(now) if prev is ... else (prev & now if prev is not None else set())
+
+    def _validator_effects(self, test: ast.expr, scope: Scope
+                           ) -> Optional[Tuple[Dict[str, Set[str]], Dict[str, Set[str]]]]:
+        """``if is_safe(x):`` / ``if not is_safe(x):`` where is_safe is a project validator."""
+        negated = False
+        while isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not):
+            negated, test = not negated, test.operand
+        if not isinstance(test, ast.Call):
+            return None
+        name = self.resolve(test.func) or ""
+        method = test.func.attr if isinstance(test.func, ast.Attribute) else ""
+        target = self.resolve_call(test, name, method, scope)
+        if target is None or len(target.defs) != 1:
+            return None
+        module, fn = target.defs[0]
+        summary = self.project.summary(module, fn)
+        if summary is None or not summary.validates:
+            return None
+        args = self._param_args(test, fn, target.bound)
+        cleared: Dict[str, Set[str]] = {}
+        for param, kinds in summary.validates:
+            expr = args.get(param)
+            if expr is None:
+                continue
+            for n in self._guarded_names(expr, scope):
+                cleared.setdefault(n, set()).update(kinds)
+        if not cleared:
+            return None
+        return ({}, cleared) if negated else (cleared, {})
+
     def _guard_effects(self, test: ast.expr, scope: Scope) -> Tuple[Dict[str, Set[str]], Dict[str, Set[str]]]:
         """Kinds cleared per variable when ``test`` is true (good) and when it is false (bad side)."""
         good: Dict[str, Set[str]] = {}
         bad: Dict[str, Set[str]] = {}
+        project_check = self._validator_effects(test, scope)
+        if project_check is not None:
+            return project_check
         pol = self._polarity(test)
         if pol is None:
             return good, bad
@@ -2091,6 +2291,17 @@ class _ModuleAnalyzer:
     def _report(self, rule_id: str, node: ast.AST, flow: Optional[Flow], sink: str, message: str,
                 confidence: Optional[Confidence] = None) -> None:
         if self.quiet:
+            if self.collector is not None and flow is not None and flow.level == TAINTED and flow.marks \
+                    and not self.frames:
+                site = (self.source.rel_path, node.lineno, getattr(node, "col_offset", 0) + 1,  # type: ignore[attr-defined]
+                        getattr(node, "end_lineno", None), self.source.line(node.lineno).strip(),  # type: ignore[attr-defined]
+                        ".".join(self.func_stack) or None)
+                sink_step = self._step(node.lineno, f"reaches sink `{sink}`", "sink")  # type: ignore[attr-defined]
+                for p in sorted(flow.marks):
+                    direct = self.markers.get(p) is flow
+                    self._collect(ParamSink(p, rule_id, _RULE_KIND.get(rule_id, ""), sink, message,
+                                            () if direct else _short_trace(flow.steps + (sink_step,)),
+                                            None if direct else site))
             return
         rule = RULES[rule_id]
         if confidence is None:
@@ -2101,7 +2312,7 @@ class _ModuleAnalyzer:
             trace = [s for s in flow.steps if s.line > 0] + [self._step(node.lineno, f"reaches sink `{sink}`", "sink")]  # type: ignore[attr-defined]
         line = node.lineno  # type: ignore[attr-defined]
         col = getattr(node, "col_offset", 0) + 1
-        key = (rule_id, line, col)
+        key = (rule_id, self.source.rel_path, line, col)
         old = self.findings.get(key)
         if old is not None and old.confidence.rank >= confidence.rank:
             return
@@ -2126,6 +2337,111 @@ class _ModuleAnalyzer:
                 "in_route": self._in_route(),
             },
         )
+
+    def _collect(self, ps: ParamSink) -> None:
+        assert self.collector is not None
+        key = (ps.param, ps.rule_id, ps.site)
+        if key not in self.collector and len(self.collector) < _MAX_PARAM_SINKS:
+            self.collector[key] = ps
+
+    def _report_at(self, rule_id: str, site: Tuple[str, int, int, Optional[int], str, Optional[str]],
+                   trace: Sequence[TraceStep], message: str, confidence: Confidence, context: Dict[str, Any]) -> None:
+        """A finding at a sink in another function (possibly another file), reached through a call here."""
+        rule = RULES[rule_id]
+        path, line, col, end_line, snippet, function = site
+        key = (rule_id, path, line, col)
+        old = self.findings.get(key)
+        if old is not None and old.confidence.rank >= confidence.rank:
+            return
+        self.findings[key] = Finding(
+            rule_id=rule.id, title=rule.title, message=message, severity=rule.severity, confidence=confidence,
+            path=path, line=line, column=col, end_line=end_line, snippet=snippet, cwe=rule.cwe, engine=ENGINE,
+            function=function, trace=list(_short_trace(trace)), context=context)
+
+    def _param_args(self, call: ast.Call, fn: Any, bound: bool) -> Dict[str, ast.expr]:
+        """Which argument expression each parameter of ``fn`` receives at ``call``."""
+        a = fn.args
+        positional = [x.arg for x in a.posonlyargs + a.args]
+        if self.project.method_owner.get(id(fn)) and not _is_staticmethod(fn) and bound:
+            positional = positional[1:]
+        out: Dict[str, ast.expr] = {}
+        for i, e in enumerate(call.args):
+            if isinstance(e, ast.Starred):
+                break  # positions after *args are unknown
+            if i < len(positional):
+                out[positional[i]] = e
+        names = set(positional) | {x.arg for x in a.kwonlyargs}
+        for k in call.keywords:
+            if k.arg in names:
+                out[k.arg] = k.value
+        return out
+
+    def _check_param_sinks(self, call: ast.Call, scope: Scope) -> bool:
+        """Arguments that reach a sink inside the called project function (Summary v2).
+
+        Returns True when the call is exactly one project method whose v2 summary is complete."""
+        name = self.resolve(call.func) or ""
+        method = call.func.attr if isinstance(call.func, ast.Attribute) else ""
+        if not method or not isinstance(call.func, ast.Attribute):
+            if self.quiet and self.collector is None:
+                return False
+        target = self.resolve_call(call, name, method, scope)
+        if target is None:
+            return False
+        own = False
+        if target.exact and len(target.defs) == 1 and method and not target.label.startswith("function"):
+            summary = self.project.summary(*target.defs[0])
+            own = summary is not None and summary.walked
+        if self.quiet and self.collector is None:
+            return own
+        for module, fn in target.defs:
+            summary = self.project.summary(module, fn)
+            if summary is None or not summary.param_sinks:
+                continue
+            args = self._param_args(call, fn, target.bound)
+            label = getattr(fn, "name", "call")
+            owner = self.project.method_owner.get(id(fn))
+            if owner:
+                label = f"{owner.rsplit('.', 1)[-1]}.{label}"
+            for ps in summary.param_sinks:
+                expr = args.get(ps.param)
+                if expr is None:
+                    continue
+                f = self.flow(expr, scope).for_kind(ps.kind)
+                if f.level != TAINTED:
+                    continue
+                call_step = self._step(call.lineno, f"passed to `{label}()` as `{ps.param}`", "call")
+                exact = ps.exact and target.exact
+                here = (self.source.rel_path, call.lineno, call.col_offset + 1, getattr(call, "end_lineno", None),
+                        self.source.line(call.lineno).strip(), ".".join(self.func_stack) or None)
+                inside = f"User input passed to `{label}()` reaches `{ps.sink}` inside it."
+                if self.quiet:  # chain: this function's own parameters reach the sink through the call
+                    if self.frames:
+                        continue
+                    for p in sorted(f.marks):
+                        direct = self.markers.get(p) is f
+                        if ps.site is None and direct:
+                            self._collect(ParamSink(p, ps.rule_id, ps.kind, ps.sink, ps.message, (), None, exact))
+                        elif ps.site is None:
+                            sink_step = self._step(call.lineno, f"reaches sink `{ps.sink}` inside `{label}()`", "sink")
+                            self._collect(ParamSink(p, ps.rule_id, ps.kind, ps.sink, inside,
+                                                    _short_trace(f.steps + (call_step, sink_step)), here, exact))
+                        else:
+                            self._collect(ParamSink(p, ps.rule_id, ps.kind, ps.sink, ps.message,
+                                                    _short_trace(f.steps + (call_step,) + ps.steps), ps.site, exact))
+                    continue
+                if ps.site is None:
+                    site, message = here, inside
+                    trace = f.steps + (call_step, self._step(call.lineno, f"reaches sink `{ps.sink}` inside `{label}()`",
+                                                             "sink"))
+                else:
+                    site, message = ps.site, ps.message
+                    trace = f.steps + (call_step,) + ps.steps
+                self._report_at(ps.rule_id, site, trace, message, Confidence.HIGH if exact else Confidence.MEDIUM, {
+                    "sink": ps.sink, "flow": "tainted", "in_route": self._in_route(),
+                    "via": {"callee": label, "param": ps.param, "call": f"{self.source.rel_path}:{call.lineno}",
+                            "resolution": target.label, "exact": exact}})
+        return own
 
     @staticmethod
     def _describe(flow: Flow) -> str:
@@ -2178,10 +2494,15 @@ class _ModuleAnalyzer:
                          f"User input is stored in `{holder}` without validation.")
 
     def _check_call(self, call: ast.Call, scope: Scope) -> None:
+        own = self._check_param_sinks(call, scope)
         name = self.resolve(call.func) or ""
         method = call.func.attr if isinstance(call.func, ast.Attribute) else ""
         first = _arg(call, 0)
         short = name or method or "call"
+        if own:
+            # `self.execute(x)` that resolves to the project's own `execute`: what happens to `x` is in
+            # that method's summary (checked above), not the library method of the same name.
+            method = ""
 
         # Keyword-only checks apply to any callee.
         if _is_false(_kw(call, "verify")):

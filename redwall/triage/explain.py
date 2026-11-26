@@ -165,7 +165,7 @@ _NON_FLOW = {
 
 _S = {
     "en": {
-        "traced": "User input enters at line {src_line} via {source} and reaches `{sink}` at line {line}"
+        "traced": "User input enters at {src} via {source} and reaches `{sink}` at line {line}"
                   " ({hops} step{s} in the trace).",
         "built": "`{sink}` at line {line} receives a string built from non-constant parts; RedWall could not "
                  "prove those parts are constant.",
@@ -190,7 +190,7 @@ _S = {
         "source_unknown": "an unnamed source",
     },
     "tr": {
-        "traced": "Kullanıcı girdisi {src_line}. satırda {source} ile giriyor ve {line}. satırda `{sink}` çağrısına "
+        "traced": "Kullanıcı girdisi {src} {source} ile giriyor ve {line}. satırda `{sink}` çağrısına "
                   "ulaşıyor (izde {hops} adım).",
         "built": "{line}. satırdaki `{sink}` sabit olmayan parçalardan kurulmuş bir metin alıyor; RedWall bu "
                  "parçaların sabit olduğunu kanıtlayamadı.",
@@ -255,7 +255,11 @@ def why_open(f: Finding, s: Score, lang: str) -> List[str]:
         m = _SOURCE.search(first.note)
         source = m.group(1) if m else t["source_unknown"]
         hops = len(f.trace)
-        lines.append(t["traced"].format(src_line=first.line, source=source, sink=sink, line=f.line,
+        if first.path and first.path != f.path:  # the input enters in another file (interprocedural trace)
+            src = f"{first.path}:{first.line}" if lang == "en" else f"{first.path}:{first.line} konumunda"
+        else:
+            src = f"line {first.line}" if lang == "en" else f"{first.line}. satırda"
+        lines.append(t["traced"].format(src=src, source=source, sink=sink, line=f.line,
                                         hops=hops, s="" if hops == 1 else "s"))
         if s.kind in _MITIGATIONS[lang]:
             lines.append(t["checked_none"].format(mitigations=_MITIGATIONS[lang][s.kind]))
