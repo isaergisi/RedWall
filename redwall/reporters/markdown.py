@@ -35,7 +35,7 @@ def _details(f: Finding, lab: dict, out: List[str]) -> None:
     if f.trace:
         out.extend(["", f"{lab['data_flow']}:", ""])
         for i, step in enumerate(f.trace, 1):
-            out.append(f"{i}. line {step.line}: {step.note}")
+            out.append(f"{i}. {step.where(f.path)}: {step.note}")
     t = f.triage
     if t is None:
         return

@@ -36,9 +36,12 @@ import ast
 import gc
 import operator
 import re
+import warnings
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Sequence, Set, Tuple
 
+from ..analysis import ProjectIndex
 from ..models import Confidence, Finding, Rule, Severity, TraceStep
 from . import python_kb as kb
 from .base import Engine, SourceFile
@@ -337,6 +340,16 @@ def _safe_binop(op: ast.operator, a: Any, b: Any) -> Any:
 # --------------------------------------------------------------------------
 
 
+def _internal_error(path: str, node: Optional[ast.AST], exc: BaseException, effect: str) -> str:
+    """One line for ScanResult.errors when the analyser itself fails on some code (a RedWall bug)."""
+    where = f"{path}:{node.lineno}" if node is not None and hasattr(node, "lineno") else path
+    name = getattr(node, "name", None)
+    what = f" in `{name}`" if name else ""
+    if isinstance(exc, RecursionError):
+        return f"{where}{what}: too deeply nested to analyse ({effect})"
+    return f"{where}{what}: internal analyser error, {effect} ({exc.__class__.__name__}: {exc})"
+
+
 def _dotted(node: ast.AST) -> Optional[str]:
     parts: List[str] = []
     while isinstance(node, ast.Attribute):
@@ -348,7 +361,13 @@ def _dotted(node: ast.AST) -> Optional[str]:
     return None
 
 
-def _collect_imports(tree: ast.AST) -> Tuple[Dict[str, str], Set[str]]:
+def _collect_imports(tree: ast.AST, resolve_relative: Optional[Callable[[int, Optional[str]], Optional[str]]] = None
+                     ) -> Tuple[Dict[str, str], Set[str]]:
+    """Local name -> dotted name it was imported as, and the modules imported.
+
+    ``resolve_relative(level, module)`` turns ``from ..x import y`` into an absolute module name; without
+    it (or when it cannot) relative imports are left out, as before phase 3.
+    """
     aliases: Dict[str, str] = {}
     modules: Set[str] = set()
     for node in ast.walk(tree):
@@ -357,10 +376,15 @@ def _collect_imports(tree: ast.AST) -> Tuple[Dict[str, str], Set[str]]:
                 modules.add(a.name)
                 if a.asname:
                     aliases[a.asname] = a.name
-        elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
-            modules.add(node.module)
+        elif isinstance(node, ast.ImportFrom):
+            base = node.module if node.level == 0 else (
+                resolve_relative(node.level, node.module) if resolve_relative else None)
+            if not base:
+                continue
+            modules.add(base)
             for a in node.names:
-                aliases[a.asname or a.name] = f"{node.module}.{a.name}"
+                if a.name != "*":
+                    aliases[a.asname or a.name] = f"{base}.{a.name}"
     return aliases, modules
 
 
@@ -595,6 +619,16 @@ def _mentions_source(fn: ast.AST) -> bool:
     return False
 
 
+def _returns_closure_call(fn: ast.AST, returns: List[Optional[ast.expr]]) -> bool:
+    nested = {n.name for n in _own_nodes(fn) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    nested |= {t.id for n in _own_nodes(fn) if isinstance(n, ast.Assign) and isinstance(n.value, ast.Lambda)
+               for t in n.targets if isinstance(t, ast.Name)}
+    if not nested:
+        return False
+    return any(isinstance(c, ast.Call) and isinstance(c.func, ast.Name) and c.func.id in nested
+               for r in returns if r is not None for c in ast.walk(r))
+
+
 class _Project:
     """Function and method definitions across the scanned files."""
 
@@ -602,19 +636,43 @@ class _Project:
         self.functions: Dict[str, Tuple["_Module", ast.AST]] = {}   # qualified name -> def
         self.methods: Dict[str, List[Tuple["_Module", ast.AST]]] = {}  # bare method name -> defs
         self.classes: Set[str] = set()
+        self.by_module: Dict[str, "_Module"] = {}  # every importable name -> module
         self._cache: Dict[int, Optional[Summary]] = {}
         self._busy: Set[int] = set()
+        self.errors: List[str] = []
 
     def add(self, module: "_Module") -> None:
+        names = module.names or (module.qualname,)
+        for name in names:
+            self.by_module.setdefault(name, module)
         for node in module.tree.body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                self.functions[f"{module.qualname}.{node.name}"] = (module, node)
+                for name in names:
+                    self.functions.setdefault(f"{name}.{node.name}", (module, node))
             elif isinstance(node, ast.ClassDef):
                 self.classes.add(f"{module.qualname}.{node.name}")
                 for item in node.body:
                     if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and not item.name.startswith("__"):
-                        self.functions[f"{module.qualname}.{node.name}.{item.name}"] = (module, item)
+                        for name in names:
+                            self.functions.setdefault(f"{name}.{node.name}.{item.name}", (module, item))
                         self.methods.setdefault(item.name, []).append((module, item))
+
+    def find(self, dotted: str, _depth: int = 0) -> Optional[str]:
+        """The key in ``functions`` that ``dotted`` refers to, following package re-exports
+        (``from .impl import run`` in ``pkg/__init__.py`` makes ``pkg.run`` mean ``pkg.impl.run``)."""
+        if dotted in self.functions:
+            return dotted
+        if _depth > 5:
+            return None
+        head, _, attr = dotted.rpartition(".")
+        module = self.by_module.get(head)
+        if module is not None and attr in module.aliases and module.aliases[attr] != dotted:
+            return self.find(module.aliases[attr], _depth + 1)
+        owner, _, cls = head.rpartition(".")  # pkg.Class.method with Class re-exported by pkg
+        module = self.by_module.get(owner)
+        if module is not None and cls in module.aliases:
+            return self.find(f"{module.aliases[cls]}.{attr}", _depth + 1)
+        return None
 
     def summary(self, module: "_Module", fn: ast.AST) -> Optional[Summary]:
         key = id(fn)
@@ -625,6 +683,10 @@ class _Project:
         self._busy.add(key)
         try:
             result = self._summarise(module, fn)
+        except Exception as exc:  # noqa: BLE001 - one odd helper must not stop the scan
+            # No summary means the default behaviour at every call site, as for an unknown function.
+            self.errors.append(_internal_error(module.source.rel_path, fn, exc, "summary skipped"))
+            result = None
         finally:
             self._busy.discard(key)
         self._cache[key] = result
@@ -644,6 +706,10 @@ class _Project:
             return Summary("propagate")  # returns one of its parameters
         if not _mentions_source(fn) and sum(1 for _ in _own_nodes(fn)) > 400:
             return None  # large helper without sources: default behaviour is close enough
+        if _returns_closure_call(fn, returns):
+            # `return inner()` where inner() reads the parameters from the enclosing scope: a closure
+            # call looks like a call without arguments, so the walk would wrongly call the result clean.
+            return None
         params = [a.arg for a in fn.args.posonlyargs + fn.args.args + fn.args.kwonlyargs
                   if a.arg not in ("self", "cls")]
         plain = _ModuleAnalyzer(module, self, quiet=True).returns_of(fn, {p: _UNKNOWN for p in params})
@@ -698,15 +764,22 @@ class _Module:
     qualname: str
     aliases: Dict[str, str] = field(default_factory=dict)
     modules: Set[str] = field(default_factory=set)
+    names: Tuple[str, ...] = ()  # every name the module can be imported as (qualname first)
 
     @classmethod
-    def build(cls, source: SourceFile, tree: ast.Module) -> "_Module":
-        rel = source.rel_path[:-3] if source.rel_path.endswith(".py") else source.rel_path
-        qual = rel.replace("/", ".")
+    def build(cls, source: SourceFile, tree: ast.Module, index: Optional[ProjectIndex] = None) -> "_Module":
+        rel = source.rel_path
+        if index is not None and rel in index.modules:
+            info = index.info(rel)
+            aliases, modules = _collect_imports(tree, lambda level, mod: index.resolve_relative(rel, level, mod))
+            names = (info.name,) + tuple(n for n in info.aliases if index.lookup(n) == rel)  # no shared aliases
+            return cls(source, tree, info.name, aliases, modules, names)
+        stem = rel[:-3] if rel.endswith(".py") else rel
+        qual = stem.replace("/", ".")
         if qual.endswith(".__init__"):
             qual = qual[: -len(".__init__")]
         aliases, modules = _collect_imports(tree)
-        return cls(source, tree, qual, aliases, modules)
+        return cls(source, tree, qual, aliases, modules, (qual,))
 
     def imports(self, *prefixes: str) -> bool:
         names = self.modules | set(self.aliases.values())
@@ -737,6 +810,12 @@ class _ModuleAnalyzer:
         self.loops: List[_LoopFrame] = []
         self.returns: Optional[List[Flow]] = None
         self._normalised_vars: Set[str] = set()
+        self.errors: List[str] = []
+
+    def _step(self, line: int, note: str, kind: str, function: Optional[str] = None) -> TraceStep:
+        """A trace step in this module, tagged with its file, enclosing function and kind."""
+        return TraceStep(line, note, path=self.source.rel_path,
+                         function=function if function is not None else (".".join(self.func_stack) or None), kind=kind)
 
     # -- name resolution ---------------------------------------------------
 
@@ -792,7 +871,7 @@ class _ModuleAnalyzer:
     def _flow(self, node: ast.expr, scope: Scope) -> Flow:
         note = self.source_note(node)
         if note:
-            return Flow(TAINTED, (TraceStep(node.lineno, f"user input enters via `{note}`"),))
+            return Flow(TAINTED, (self._step(node.lineno, f"user input enters via `{note}`", "source"),))
         if isinstance(node, ast.Constant):
             return _const(node.value)
         if isinstance(node, ast.Name):
@@ -1004,7 +1083,7 @@ class _ModuleAnalyzer:
                 return _CONST
             if first.level == TAINTED:
                 return replace(first, safe_for=first.safe_for | kinds, elems=None, keys=None,
-                               steps=first.steps + (TraceStep(node.lineno, f"escaped by `{name}()` (safe for {', '.join(sorted(kinds))} only)"),))
+                               steps=first.steps + (self._step(node.lineno, f"escaped by `{name}()` (safe for {', '.join(sorted(kinds))} only)", "sanitizer"),))
             return replace(first, elems=None, keys=None) if first.level != CONST else _CONST
 
         # Containers and parser objects.
@@ -1040,8 +1119,8 @@ class _ModuleAnalyzer:
         summary = self._summary_for(node, name, method, scope)
         if summary is not None:
             if summary.kind == "source":
-                return Flow(TAINTED, (TraceStep(node.lineno, f"user input enters via `{name or method}()`"
-                                                + (f" ({summary.note})" if summary.note else "")),))
+                return Flow(TAINTED, (self._step(node.lineno, f"user input enters via `{name or method}()`"
+                                                 + (f" ({summary.note})" if summary.note else ""), "source"),))
             if summary.kind == "const":
                 return _const(summary.value) if summary.value is not NOVALUE else _CONST
             if summary.kind == "propagate":
@@ -1081,7 +1160,7 @@ class _ModuleAnalyzer:
                     old, new = _value(args[0]), _value(args[1])
                     if isinstance(old, str) and isinstance(new, str) and old in ("'", '"') and old not in new:
                         out = replace(out, safe_for=out.safe_for | {"xpathi"},
-                                      steps=out.steps + (TraceStep(node.lineno, f"quote `{old}` replaced"),))
+                                      steps=out.steps + (self._step(node.lineno, f"quote `{old}` replaced", "sanitizer"),))
                 return out
             if method in ("getvalue", "read", "readline", "readlines", "decode", "encode", "copy", "items",
                           "values", "keys") and receiver.level != CONST:
@@ -1141,11 +1220,11 @@ class _ModuleAnalyzer:
         return _collapse(recv)
 
     def _summary_for(self, node: ast.Call, name: str, method: str, scope: Scope) -> Optional[Summary]:
-        if name and name in self.project.functions:
-            return self.project.lookup_function(name)
-        local = f"{self.module.qualname}.{name}" if name else ""
-        if local and local in self.project.functions:
-            return self.project.lookup_function(local)
+        target = self.project.find(name) if name else None
+        if target is None and name:
+            target = self.project.find(f"{self.module.qualname}.{name}")
+        if target is not None:
+            return self.project.lookup_function(target)
         if method and isinstance(node.func, ast.Attribute) and not self._is_module_ref(node.func, scope):
             receiver = self.flow(node.func.value, scope)
             if receiver.level != TAINTED and receiver.elems is None and receiver.keys is None:
@@ -1156,7 +1235,16 @@ class _ModuleAnalyzer:
 
     def run(self) -> List[Finding]:
         self.route_stack.append(False)
-        self._walk_body(self.module.tree.body, Scope())
+        scope = Scope()
+        body = self.module.tree.body
+        for i, stmt in enumerate(body):
+            try:
+                if self._walk_stmt(stmt, scope, body[i + 1:]):
+                    break
+            except Exception as exc:  # noqa: BLE001 - keep going with the next top-level statement
+                self.errors.append(_internal_error(self.source.rel_path, stmt, exc, "statement skipped"))
+                del self.func_stack[:], self.loops[:]
+                self.route_stack[:] = [False]
         return list(self.findings.values())
 
     def returns_of(self, fn: Any, params: Scope) -> List[Flow]:
@@ -1171,7 +1259,7 @@ class _ModuleAnalyzer:
     def _bind(self, target: ast.expr, value: Flow, scope: Scope, line: int, origin: FrozenSet[str] = frozenset()) -> None:
         if isinstance(target, ast.Name):
             if value.level == TAINTED:
-                value = _with_step(value, TraceStep(line, f"stored in `{target.id}`"))
+                value = _with_step(value, self._step(line, f"stored in `{target.id}`", "propagation"))
             scope[target.id] = replace(value, origin=value.origin | origin)
         elif isinstance(target, (ast.Tuple, ast.List)):
             for i, elt in enumerate(target.elts):
@@ -1342,7 +1430,8 @@ class _ModuleAnalyzer:
             if is_route and a.arg in typed:
                 scope[a.arg] = _CONST
             elif is_route:
-                scope[a.arg] = Flow(TAINTED, (TraceStep(fn.lineno, f"route parameter `{a.arg}` comes from the URL"),))  # type: ignore[attr-defined]
+                scope[a.arg] = Flow(TAINTED, (self._step(fn.lineno, f"route parameter `{a.arg}` comes from the URL", "source",  # type: ignore[attr-defined]
+                                                          function=".".join(self.func_stack + [fn.name])),))  # type: ignore[attr-defined]
             else:
                 scope[a.arg] = _UNKNOWN
         return scope, is_route
@@ -1373,6 +1462,11 @@ class _ModuleAnalyzer:
             saved_loops, self.loops = self.loops, []
             try:
                 self._walk_body(stmt.body, inner)
+            except Exception as exc:  # noqa: BLE001
+                if self.quiet:
+                    raise  # summaries handle their own failures (_Project.summary)
+                # Keep the findings already made in this function and every other function.
+                self.errors.append(_internal_error(self.source.rel_path, stmt, exc, "rest of the function skipped"))
             finally:
                 self.func_stack.pop()
                 self.route_stack.pop()
@@ -1783,7 +1877,7 @@ class _ModuleAnalyzer:
                 flow.level if flow else UNKNOWN, Confidence.LOW)
         trace: List[TraceStep] = []
         if flow is not None and flow.level == TAINTED:
-            trace = [s for s in flow.steps if s.line > 0] + [TraceStep(node.lineno, f"reaches sink `{sink}`")]  # type: ignore[attr-defined]
+            trace = [s for s in flow.steps if s.line > 0] + [self._step(node.lineno, f"reaches sink `{sink}`", "sink")]  # type: ignore[attr-defined]
         line = node.lineno  # type: ignore[attr-defined]
         col = getattr(node, "col_offset", 0) + 1
         key = (rule_id, line, col)
@@ -2103,8 +2197,29 @@ class _ModuleAnalyzer:
         return any(w in text for w in kb.SECURITY_WORDS)
 
 
+def _scan_root(files: List[SourceFile]) -> Optional[Path]:
+    for f in files:
+        depth = f.rel_path.count("/") + 1
+        try:
+            return f.abs_path.parents[depth - 1]
+        except IndexError:
+            return None
+    return None
+
+
+def _index_detail(index: ProjectIndex) -> str:
+    st = index.stats
+    total = st.absolute + st.relative
+    resolved = st.absolute_resolved + st.relative_resolved
+    cycles = len(index.cycles())
+    return (f"project imports resolved: {resolved}/{total}"
+            + (f", {cycles} import cycle{'s' if cycles != 1 else ''}" if cycles else ""))
+
+
 class PythonAstEngine(Engine):
     name = ENGINE
+    scan_detail = ""
+    last_index: Optional[ProjectIndex] = None
 
     def rules(self) -> Sequence[Rule]:
         return _RULES
@@ -2129,18 +2244,48 @@ class PythonAstEngine(Engine):
         errors: List[str] = []
         modules: List[_Module] = []
         project = _Project()
+        parsed: List[Tuple[SourceFile, ast.Module]] = []
         for source in files:
             try:
-                tree = ast.parse(source.text, filename=source.rel_path)
-            except (SyntaxError, ValueError) as exc:
+                with warnings.catch_warnings():
+                    # Invalid escape sequences etc. in scanned code are not the user's problem here.
+                    warnings.simplefilter("ignore", SyntaxWarning)
+                    warnings.simplefilter("ignore", DeprecationWarning)
+                    tree = ast.parse(source.text, filename=source.rel_path)
+            except (SyntaxError, ValueError, RecursionError, MemoryError) as exc:
                 errors.append(f"{source.rel_path}: could not parse ({exc.__class__.__name__}: {exc})")
                 continue
-            module = _Module.build(source, tree)
-            project.add(module)
+            parsed.append((source, tree))
+        index = ProjectIndex([f.rel_path for f in files], _scan_root(files))
+        for source, tree in parsed:
+            try:
+                index.add_imports(source.rel_path, tree)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(_internal_error(source.rel_path, None, exc, "imports not indexed"))
+        try:
+            index.finish()
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"import index incomplete (internal error: {exc.__class__.__name__}: {exc})")
+        self.last_index = index
+        self.scan_detail = _index_detail(index)
+        for source, tree in parsed:
+            try:
+                module = _Module.build(source, tree, index)
+                project.add(module)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(_internal_error(source.rel_path, None, exc, "file skipped"))
+                continue
             modules.append(module)
         for module in modules:
+            analyzer = _ModuleAnalyzer(module, project)
             try:
-                findings.extend(_ModuleAnalyzer(module, project).run())
+                findings.extend(analyzer.run())
             except RecursionError:
                 errors.append(f"{module.source.rel_path}: too deeply nested to analyse")
+                findings.extend(analyzer.findings.values())
+            except Exception as exc:  # noqa: BLE001 - last resort; run() isolates statements itself
+                errors.append(_internal_error(module.source.rel_path, None, exc, "rest of the file skipped"))
+                findings.extend(analyzer.findings.values())
+            errors.extend(analyzer.errors)
+        errors.extend(project.errors)
         return findings, errors

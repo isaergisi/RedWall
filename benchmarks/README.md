@@ -66,3 +66,33 @@ python benchmarks/realworld/sample.py --cache .cache/realworld --n 40   # random
 `realworld/results/` holds the numbers and the hand labels behind the phase 2 report
 (`docs/arastirma/faz2-genelleme-raporu.md`). Four generic engine bugs were fixed after this check, so the set is
 no longer held-out for the current rules: the next generalisation check needs new projects.
+
+## Phase 3 measurement
+
+Phase 3 scores every real-world case at four levels, each needing a finding with the right CWE
+(`realworld/score.py`):
+
+| Level | The finding is ... |
+|---|---|
+| `file` | in a ground-truth sink file (any line) |
+| `vuln` | on a ground-truth sink line or range, generic `shared` helpers included (the phase 2 "detected") |
+| `exact` | on an advisory-specific sink line or range |
+| `flow` | `exact`, and its trace starts at a ground-truth source line (in the right file) |
+
+True positives and false negatives come from the vulnerable trees. When a project has a fixed release
+or fix commit, the case's lines are mapped onto the fixed tree with a line diff and a hit there counts as
+a false positive (no hit: true negative). Precision is therefore case-level against the fixed release,
+not the precision of every finding in the project.
+
+| Set | Seen? | Command |
+|---|---|---|
+| `realworld/cves.json`, 17 cases | seen (development set since phase 2) | `python benchmarks/realworld/run.py --redwall-src before=<main> --redwall-src after=.` |
+| `heldout/cases.json`, 13 cases | unseen, sealed before phase 3 (see `heldout/README.md`) | `... run.py --manifest benchmarks/heldout/cases.json ...` (prints aggregates only) |
+| `synthetic/`, 15 scenarios | seen (written for phase 3) | `python benchmarks/synthetic/run.py --redwall-src before=<main> --redwall-src after=.` |
+
+The synthetic suite has a vulnerable variant and a safe twin for every multi-file scenario (three-file
+chains, relative imports, src layout, `__init__` re-exports, factories, inheritance, `self` methods,
+sanitisers and validators in other files, import cycles, recursion, `getattr` dispatch, typed FastAPI
+parameters, gRPC servicers, unparsable files). `results/faz3/*-before.*` holds the numbers
+measured before any phase 3 engine change, `*-after.*` the before/after comparison after D1-D3
+(`docs/arastirma/faz3-d1-d3-olcum.md`).

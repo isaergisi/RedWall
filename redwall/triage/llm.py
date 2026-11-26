@@ -126,7 +126,7 @@ def code_slice(root: Path, f: Finding) -> Tuple[str, List[int]]:
     start, end = span if span else (f.line - 15, f.line + 15)
     start, end = max(1, start), min(len(lines), end)
     if end - start + 1 > MAX_SLICE_LINES:
-        wanted = {f.line} | {s.line for s in f.trace if s.line > 0}
+        wanted = {f.line} | {s.line for s in f.trace if s.line > 0 and (s.path or f.path) == f.path}
         lo = max(start, min(wanted) - 10)
         hi = min(end, max(max(wanted) + 10, lo + MAX_SLICE_LINES - 1))
         start, end = lo, min(hi, lo + MAX_SLICE_LINES - 1)
@@ -153,7 +153,7 @@ _SYSTEM = (
 
 def build_prompt(f: Finding, slice_text: str, lang: str) -> str:
     language = "Turkish" if lang == "tr" else "English"
-    trace = "\n".join(f"- line {s.line}: {s.note}" for s in f.trace) or "- (no data-flow trace: pattern rule)"
+    trace = "\n".join(f"- {s.where(f.path)}: {s.note}" for s in f.trace) or "- (no data-flow trace: pattern rule)"
     reasons = "\n".join(f"- {r}" for r in (f.triage.why_open if f.triage else []))
     return (
         f"Finding: {f.rule_id} ({f.title}, {f.cwe or 'no CWE'}) at {f.path}:{f.line}\n"

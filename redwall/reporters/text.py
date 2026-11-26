@@ -40,7 +40,7 @@ def render_text(result: ScanResult, color: bool = False, lang: str = "en", brief
         if f.snippet:
             lines.append(c(_DIM, f"         > {f.snippet}"))
         for step in f.trace:
-            lines.append(c(_DIM, f"           line {step.line}: {step.note}"))
+            lines.append(c(_DIM, f"           {step.where(f.path)}: {step.note}"))
         if f.triage and not brief:
             lines.append(f"         {lab['why_open']}:")
             for reason in f.triage.why_open:
