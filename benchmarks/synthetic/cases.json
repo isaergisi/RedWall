@@ -5,7 +5,10 @@
     "`# gt:sink` (the advisory-specific line) and `# gt:sink-shared` (a generic helper every caller reaches).",
     "`expect` for the vulnerable variant is `finding`, or `uncertain` when the flow cannot be resolved",
     "statically: then a finding is allowed but must not claim certainty (confidence high); the safe twin of",
-    "every scenario must stay quiet. Written by the RedWall developers, so this set is seen, not held-out."
+    "every scenario must stay quiet. Written by the RedWall developers, so this set is seen, not held-out.",
+    "Sink convention (fixed in phase 3 D4, before any D4 engine change): a finding counts on the line where the",
+    "dangerous value is built or on the call that hands it to the dangerous operation, in the function that",
+    "builds it; both lines carry `gt:sink`. A generic helper that only passes its parameter on is `gt:sink-shared`."
   ],
   "cases": [
     {"id": "s01_three_files", "cwe": "89", "expect": "finding",
