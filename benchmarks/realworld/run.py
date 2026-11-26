@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Held-out real-world check: does RedWall find published vulnerabilities in projects it never saw?
+"""Real-world check: does RedWall find published vulnerabilities, and stay quiet once they are fixed?
 
 Usage:
-    python benchmarks/realworld/run.py [--cache DIR] [--redwall-src DIR ...] [--bandit] [--out FILE]
+    python benchmarks/realworld/run.py [--manifest FILE] [--cache DIR] [--redwall-src LABEL=DIR ...]
+                                       [--bandit] [--out FILE] [--show-cases]
 
-For every project in cves.json the script checks out the vulnerable ref (shallow), scans the
-project scope with the RedWall source tree(s) given (default: this checkout), and reports for every
-case whether a finding with the right CWE lands on a ground-truth sink, with its confidence and its
-rank in the prioritised list. When a ``fixed_ref`` exists it also scans the fixed release and reports
-whether the finding went away. Standard library only; needs ``git`` and network access to GitHub.
+For every project in the manifest (default: the phase 2 set, cves.json) the script checks out the
+vulnerable ref (shallow), scans the project scope with the RedWall source tree(s) given (default: this
+checkout), and scores every case at four levels (file, vuln, exact, flow; see score.py). When a
+``fixed_ref`` exists it also scans the fixed tree, maps the case's lines onto it, and counts a hit there
+as a false positive. It prints TP/FP/TN/FN, precision, recall and F1 per level.
+
+A manifest with a ``SEAL`` file next to it is a held-out set: the script refuses to score it if its
+digest changed (unless --allow-unsealed) and prints only aggregate numbers (unless --show-cases).
+Standard library only; needs ``git`` and network access to GitHub.
 """
 
 from __future__ import annotations
@@ -25,17 +30,9 @@ from typing import Dict, List, Optional
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent.parent
-EQUIV = [{"94", "95", "1336"}, {"327", "328"}]
-
-
-def cwe_ok(found: Optional[str], wanted: str) -> bool:
-    if not found:
-        return False
-    n = found.upper().replace("CWE-", "")
-    for group in EQUIV:
-        if wanted in group:
-            return n in group
-    return n == wanted
+sys.path.insert(0, str(HERE))
+import score  # noqa: E402
+from score import LEVELS, cwe_ok  # noqa: E402,F401
 
 
 def checkout(repo: str, ref: str, dest: Path) -> Path:
@@ -87,15 +84,27 @@ def bandit_scan(target: Path) -> Optional[dict]:
 
 
 def match(findings: List[dict], case: dict, scope: str) -> List[dict]:
-    prefix = "" if scope in (".", "") else scope.rstrip("/") + "/"
-    hits = []
-    for sink in case["sinks"]:
-        rel = sink["file"][len(prefix):] if sink["file"].startswith(prefix) else sink["file"]
-        lo, hi = sink["lines"]
-        for f in findings:
-            if f["path"] == rel and lo <= f["line"] <= hi and cwe_ok(f.get("cwe"), case["cwe"]):
-                hits.append({**f, "_shared": bool(sink.get("shared"))})
-    return hits
+    """Findings on a sink line with the right CWE (``_shared`` set for generic helper sinks)."""
+    hits = score.case_levels(findings, case, scope)["hits"]
+    exact = {id(f) for f in hits["exact"]}
+    return [{**f, "_shared": id(f) not in exact} for f in hits["vuln"]]
+
+
+def fixed_remap(vuln_dir: Path, fixed_dir: Path):
+    """Ground-truth range at ``ref`` -> the same code in the fixed tree (line diff per file)."""
+    cache: dict = {}
+
+    def remap(file: str, lines):
+        if file not in cache:
+            old, new = vuln_dir / file, fixed_dir / file
+            if old.is_file() and new.is_file():
+                cache[file] = score.line_map(old.read_text(encoding="utf-8", errors="replace"),
+                                             new.read_text(encoding="utf-8", errors="replace"))
+            else:
+                cache[file] = None
+        fn = cache[file]
+        return fn(lines) if fn else (-1, -1)  # file gone after the fix: nothing can match there
+    return remap
 
 
 def summarise_hit(hits: List[dict], total: int) -> dict:
@@ -117,57 +126,87 @@ def _conf(h: dict) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--manifest", default=str(HERE / "cves.json"))
     ap.add_argument("--cache", default=str(REPO_ROOT / ".cache" / "realworld"))
     ap.add_argument("--redwall-src", action="append", metavar="LABEL=DIR",
-                    help="RedWall source tree(s) to compare, e.g. faz0=/tmp/rw-faz0 (default: current=<repo>)")
+                    help="RedWall source tree(s) to compare, e.g. before=/tmp/rw-main (default: current=<repo>)")
     ap.add_argument("--bandit", action="store_true", help="also run Bandit (if installed) as a reference")
     ap.add_argument("--only", action="append", help="only these projects")
+    ap.add_argument("--no-fixed", action="store_true", help="skip the fixed trees (no FP/TN numbers)")
+    ap.add_argument("--show-cases", action="store_true", help="print per-case rows even for a sealed set")
+    ap.add_argument("--allow-unsealed", action="store_true", help="score a sealed set whose digest changed")
     ap.add_argument("--out", default=None, help="write the full JSON results here")
     args = ap.parse_args()
 
-    manifest = json.loads((HERE / "cves.json").read_text(encoding="utf-8"))
+    manifest_path = Path(args.manifest).resolve()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    seal_file = manifest_path.parent / "SEAL"
+    sealed = seal_file.is_file()
+    seal_ok = None
+    if sealed:
+        seal_ok = seal_file.read_text(encoding="utf-8").strip() == score.manifest_digest(manifest)
+        if not seal_ok and not args.allow_unsealed:
+            print(f"{manifest_path}: digest does not match {seal_file}; the held-out set was modified. "
+                  "Pass --allow-unsealed to score it anyway (the run is then marked unsealed).", file=sys.stderr)
+            return 2
     tools: Dict[str, Path] = {}
     for spec in args.redwall_src or [f"current={REPO_ROOT}"]:
         label, _, path = spec.partition("=")
         tools[label] = Path(path).resolve()
     cache = Path(args.cache)
-    results: dict = {"projects": {}, "cases": []}
+    cache_key = "" if manifest_path.name == "cves.json" else f"{manifest_path.parent.name}-"
+    results: dict = {"manifest": str(manifest_path.relative_to(REPO_ROOT) if manifest_path.is_relative_to(REPO_ROOT)
+                                     else manifest_path),
+                     "sealed": sealed, "seal_ok": seal_ok, "projects": {}, "cases": []}
 
     for name, proj in manifest["projects"].items():
         if args.only and name not in args.only:
             continue
-        print(f"== {name} ({proj['repo']}@{proj['ref']})", file=sys.stderr)
-        vuln_dir = checkout(proj["repo"], proj["ref"], cache / f"{name}-vuln")
+        print(f"== {name} ({proj['repo']}@{proj['ref'][:12]})", file=sys.stderr)
+        vuln_dir = checkout(proj["repo"], proj["ref"], cache / f"{cache_key}{name}-vuln")
         target = vuln_dir / proj["scope"]
         scans = {label: redwall_scan(src, target) for label, src in tools.items()}
         if args.bandit:
             b = bandit_scan(target)
             if b is not None:
                 scans["bandit"] = b
-        fixed = {}
-        if proj.get("fixed_ref"):
-            fixed_dir = checkout(proj["repo"], proj["fixed_ref"], cache / f"{name}-fixed")
+        fixed, remap = {}, None
+        if proj.get("fixed_ref") and not args.no_fixed:
+            fixed_dir = checkout(proj["repo"], proj["fixed_ref"], cache / f"{cache_key}{name}-fixed")
             fixed = {label: redwall_scan(src, fixed_dir / proj["scope"]) for label, src in tools.items()}
+            if "bandit" in scans:
+                b = bandit_scan(fixed_dir / proj["scope"])
+                if b is not None:
+                    fixed["bandit"] = b
+            remap = fixed_remap(vuln_dir, fixed_dir)
         results["projects"][name] = {
             label: {"findings": len(s["findings"]), "seconds": s.get("_seconds"),
-                    "by_priority": s.get("summary", {}).get("by_priority")}
+                    "fixed_findings": len(fixed[label]["findings"]) if label in fixed else None,
+                    "by_priority": s.get("summary", {}).get("by_priority"),
+                    "engines": s.get("engines")}
             for label, s in scans.items()}
         for case in manifest["cases"]:
             if case["project"] != name:
                 continue
             row = {"id": case["id"], "project": name, "advisory": case["advisory"], "cwe": case["cwe"], "tools": {}}
             for label, s in scans.items():
+                scored = score.case_levels(s["findings"], case, proj["scope"])
                 hits = match(s["findings"], case, proj["scope"])
-                row["tools"][label] = summarise_hit(hits, len(s["findings"]))
+                entry = summarise_hit(hits, len(s["findings"]))
+                entry["vulnerable"] = scored["levels"]
                 if label in fixed:
-                    row["tools"][label]["fixed_release_still_flagged"] = _still_flagged(
-                        hits, fixed[label]["findings"], case)
+                    entry["fixed"] = score.case_levels(fixed[label]["findings"], case, proj["scope"], remap)["levels"]
+                    entry["fixed_release_still_flagged"] = _still_flagged(hits, fixed[label]["findings"], case)
+                row["tools"][label] = entry
             results["cases"].append(row)
 
+    labels = list(scans) if results["cases"] else list(tools)
+    results["metrics"] = {label: score.confusion(results["cases"], label) for label in labels}
     text = json.dumps(results, indent=2, ensure_ascii=False)
     if args.out:
         Path(args.out).write_text(text + "\n", encoding="utf-8")
-    print(render(results, list(tools) + (["bandit"] if args.bandit else [])))
+    show_cases = args.show_cases or not sealed
+    print(render(results, labels, show_cases))
     return 0
 
 
@@ -179,9 +218,16 @@ def _still_flagged(hits: List[dict], fixed_findings: List[dict], case: dict) -> 
     return any((f["path"], f.get("function"), f["rule_id"]) in keys for f in fixed_findings)
 
 
-def render(results: dict, labels: List[str]) -> str:
-    lines = ["| case | advisory | CWE | " + " | ".join(labels) + " |",
-             "|---|---|---|" + "---|" * len(labels)]
+def render(results: dict, labels: List[str], show_cases: bool = True) -> str:
+    lines = []
+    if results.get("sealed"):
+        lines.append("held-out set, " + ("seal verified" if results.get("seal_ok") else "UNSEALED (manifest modified)"))
+        lines.append("")
+    lines += render_metrics(results, labels)
+    if not show_cases:
+        return "\n".join(lines)
+    lines += ["", "| case | advisory | CWE | " + " | ".join(labels) + " |",
+              "|---|---|---|" + "---|" * len(labels)]
     for row in results["cases"]:
         cells = []
         for label in labels:
@@ -210,6 +256,27 @@ def render(results: dict, labels: List[str]) -> str:
         totals.append(f"{label}: {det}/{len(rows)} detected ({strict} at an advisory-specific sink)")
     lines += ["", "; ".join(totals)]
     return "\n".join(lines)
+
+
+def render_metrics(results: dict, labels: List[str]) -> List[str]:
+    """Per tool and level: TP/FN on vulnerable trees, FP/TN on fixed trees, precision/recall/F1."""
+    def pct(x):
+        return "n/a" if x is None else f"{x:.2f}"
+    lines = ["| tool | level | TP | FN | FP | TN | precision | recall | F1 |", "|---|---|---|---|---|---|---|---|---|"]
+    for label in labels:
+        m = results["metrics"].get(label, {})
+        for lvl in LEVELS:
+            c = m.get(lvl)
+            if c:
+                lines.append(f"| {label} | {lvl} | {c['tp']} | {c['fn']} | {c['fp']} | {c['tn']} | "
+                             f"{pct(c['precision'])} | {pct(c['recall'])} | {pct(c['f1'])} |")
+    totals = []
+    for label in labels:
+        n = sum(p[label]["findings"] for p in results["projects"].values() if label in p)
+        secs = sum(p[label].get("seconds") or 0 for p in results["projects"].values() if label in p)
+        totals.append(f"{label}: {n} findings on the vulnerable trees" + (f", {secs:.0f} s" if secs else ""))
+    return lines + ["", "; ".join(totals),
+                    "FP/TN come from the fixed trees: precision here is case-level against the fixed release."]
 
 
 if __name__ == "__main__":

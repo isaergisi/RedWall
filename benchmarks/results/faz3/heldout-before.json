@@ -1,0 +1,666 @@
+{
+  "manifest": "benchmarks/heldout/cases.json",
+  "sealed": true,
+  "seal_ok": true,
+  "projects": {
+    "esphome": {
+      "before": {
+        "findings": 8,
+        "seconds": 3.6,
+        "fixed_findings": 8,
+        "by_priority": {
+          "P1": 0,
+          "P2": 0,
+          "P3": 0,
+          "P4": 8
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 1088
+          }
+        ]
+      }
+    },
+    "invokeai": {
+      "before": {
+        "findings": 28,
+        "seconds": 2.6,
+        "fixed_findings": 28,
+        "by_priority": {
+          "P1": 4,
+          "P2": 4,
+          "P3": 20,
+          "P4": 0
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 451
+          }
+        ]
+      }
+    },
+    "jupyterserver": {
+      "before": {
+        "findings": 5,
+        "seconds": 0.8,
+        "fixed_findings": 5,
+        "by_priority": {
+          "P1": 0,
+          "P2": 0,
+          "P3": 0,
+          "P4": 5
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 88
+          }
+        ]
+      }
+    },
+    "mobsf": {
+      "before": {
+        "findings": 49,
+        "seconds": 2.1,
+        "fixed_findings": 49,
+        "by_priority": {
+          "P1": 33,
+          "P2": 6,
+          "P3": 3,
+          "P4": 7
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 143
+          }
+        ]
+      }
+    },
+    "mindsdb": {
+      "before": {
+        "findings": 74,
+        "seconds": 4.4,
+        "fixed_findings": 74,
+        "by_priority": {
+          "P1": 5,
+          "P2": 2,
+          "P3": 57,
+          "P4": 10
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 1200
+          }
+        ]
+      }
+    },
+    "streamlit": {
+      "before": {
+        "findings": 27,
+        "seconds": 1.4,
+        "fixed_findings": 27,
+        "by_priority": {
+          "P1": 0,
+          "P2": 0,
+          "P3": 5,
+          "P4": 22
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 197
+          }
+        ]
+      }
+    },
+    "mlflow": {
+      "before": {
+        "findings": 24,
+        "seconds": 4.4,
+        "fixed_findings": 24,
+        "by_priority": {
+          "P1": 2,
+          "P2": 3,
+          "P3": 12,
+          "P4": 7
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 464
+          }
+        ]
+      }
+    },
+    "litellm": {
+      "before": {
+        "findings": 45,
+        "seconds": 6.3,
+        "fixed_findings": 45,
+        "by_priority": {
+          "P1": 3,
+          "P2": 1,
+          "P3": 1,
+          "P4": 40
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 303
+          }
+        ]
+      }
+    },
+    "copyparty": {
+      "before": {
+        "findings": 14,
+        "seconds": 2.0,
+        "fixed_findings": 14,
+        "by_priority": {
+          "P1": 0,
+          "P2": 3,
+          "P3": 3,
+          "P4": 8
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 55
+          }
+        ]
+      }
+    },
+    "postgraas": {
+      "before": {
+        "findings": 9,
+        "seconds": 0.1,
+        "fixed_findings": 7,
+        "by_priority": {
+          "P1": 0,
+          "P2": 0,
+          "P3": 8,
+          "P4": 1
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 16
+          }
+        ]
+      }
+    },
+    "geonode": {
+      "before": {
+        "findings": 39,
+        "seconds": 5.2,
+        "fixed_findings": 39,
+        "by_priority": {
+          "P1": 4,
+          "P2": 10,
+          "P3": 19,
+          "P4": 6
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 928
+          }
+        ]
+      }
+    },
+    "fides": {
+      "before": {
+        "findings": 15,
+        "seconds": 2.0,
+        "fixed_findings": 15,
+        "by_priority": {
+          "P1": 2,
+          "P2": 1,
+          "P3": 10,
+          "P4": 2
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 487
+          }
+        ]
+      }
+    },
+    "whoogle": {
+      "before": {
+        "findings": 16,
+        "seconds": 0.2,
+        "fixed_findings": 16,
+        "by_priority": {
+          "P1": 4,
+          "P2": 2,
+          "P3": 6,
+          "P4": 4
+        },
+        "engines": [
+          {
+            "name": "python-ast",
+            "status": "ok",
+            "detail": "",
+            "files": 17
+          }
+        ]
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "esphome-config-write",
+      "project": "esphome",
+      "advisory": "GHSA-8p25-3q46-8q2p",
+      "cwe": "22",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "invokeai-delete-image",
+      "project": "invokeai",
+      "advisory": "GHSA-227r-w5j2-6243",
+      "cwe": "22",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "jupyterserver-login-next",
+      "project": "jupyterserver",
+      "advisory": "GHSA-r726-vmfq-j9j3",
+      "cwe": "601",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "mobsf-login-next",
+      "project": "mobsf",
+      "advisory": "GHSA-8m9j-2f32-2vx4",
+      "cwe": "601",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-OPENREDIRECT",
+          "line": 62,
+          "confidence": "high",
+          "of": 49,
+          "rank": 36,
+          "tier": "P2",
+          "score": 65,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed_release_still_flagged": true
+        }
+      }
+    },
+    {
+      "id": "mindsdb-file-url",
+      "project": "mindsdb",
+      "advisory": "GHSA-34mr-6q8x-g9r6",
+      "cwe": "918",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "streamlit-component-path",
+      "project": "streamlit",
+      "advisory": "GHSA-8qw9-gf7w-42x5",
+      "cwe": "22",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "mlflow-delete-artifact",
+      "project": "mlflow",
+      "advisory": "GHSA-554w-xh4j-8w64",
+      "cwe": "22",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": true,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": true,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "litellm-global-spend",
+      "project": "litellm",
+      "advisory": "GHSA-h6m6-jj8v-94jj",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "copyparty-dot-cpr",
+      "project": "copyparty",
+      "advisory": "GHSA-pxfv-7rr3-2qjg",
+      "cwe": "22",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "postgraas-create-db",
+      "project": "postgraas",
+      "advisory": "GHSA-vghm-8cjp-hjw6",
+      "cwe": "89",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-SQLI",
+          "line": 22,
+          "confidence": "medium",
+          "of": 9,
+          "rank": 1,
+          "tier": "P3",
+          "score": 57,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "fixed_release_still_flagged": true
+        }
+      }
+    },
+    {
+      "id": "geonode-sld-xxe",
+      "project": "geonode",
+      "advisory": "GHSA-mcmc-c59m-pqq8",
+      "cwe": "611",
+      "tools": {
+        "before": {
+          "detected": false,
+          "vulnerable": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed": {
+            "file": false,
+            "vuln": false,
+            "exact": false,
+            "flow": false
+          },
+          "fixed_release_still_flagged": null
+        }
+      }
+    },
+    {
+      "id": "fides-ui-catchall",
+      "project": "fides",
+      "advisory": "GHSA-r25m-cr6v-p9hq",
+      "cwe": "22",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-PATH",
+          "line": 170,
+          "confidence": "high",
+          "of": 15,
+          "rank": 2,
+          "tier": "P1",
+          "score": 85,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed_release_still_flagged": true
+        }
+      }
+    },
+    {
+      "id": "whoogle-config-name",
+      "project": "whoogle",
+      "advisory": "GHSA-hh2q-qv66-jcqg",
+      "cwe": "22",
+      "tools": {
+        "before": {
+          "detected": true,
+          "only_shared_sink": false,
+          "rule": "RW-PY-PATH",
+          "line": 430,
+          "confidence": "high",
+          "of": 16,
+          "rank": 1,
+          "tier": "P1",
+          "score": 85,
+          "vulnerable": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": true
+          },
+          "fixed": {
+            "file": true,
+            "vuln": true,
+            "exact": true,
+            "flow": false
+          },
+          "fixed_release_still_flagged": true
+        }
+      }
+    }
+  ],
+  "metrics": {
+    "before": {
+      "file": {
+        "tp": 5,
+        "fp": 5,
+        "tn": 8,
+        "fn": 8,
+        "precision": 0.5,
+        "recall": 0.385,
+        "f1": 0.435
+      },
+      "vuln": {
+        "tp": 4,
+        "fp": 4,
+        "tn": 9,
+        "fn": 9,
+        "precision": 0.5,
+        "recall": 0.308,
+        "f1": 0.381
+      },
+      "exact": {
+        "tp": 4,
+        "fp": 4,
+        "tn": 9,
+        "fn": 9,
+        "precision": 0.5,
+        "recall": 0.308,
+        "f1": 0.381
+      },
+      "flow": {
+        "tp": 3,
+        "fp": 2,
+        "tn": 11,
+        "fn": 10,
+        "precision": 0.6,
+        "recall": 0.231,
+        "f1": 0.333
+      }
+    }
+  }
+}

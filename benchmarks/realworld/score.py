@@ -13,9 +13,9 @@ whose CWE matches the case:
 ``exact``
     the finding is on an advisory-specific (not ``shared``) sink line or range.
 ``flow``
-    an ``exact`` finding whose trace has a step in one of the case's source files on a source line or
-    range. A trace step without a ``path`` is taken to be in the finding's own file, which is what
-    every RedWall release before phase 3 emits.
+    an ``exact`` finding whose trace starts (its first step, where the value enters) in one of the
+    case's source files on a source line or range. A trace step without a ``path`` is taken to be in
+    the finding's own file, which is what every RedWall release before phase 3 emits.
 
 Positives are the vulnerable trees (``ref``). When a case has a ``fixed_ref``, the fixed tree is the
 matching negative: the case's lines are mapped onto the fixed files with a line diff and the same
@@ -29,7 +29,7 @@ from __future__ import annotations
 import difflib
 import hashlib
 import json
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 LEVELS = ("file", "vuln", "exact", "flow")
 EQUIV = [{"94", "95", "1336"}, {"327", "328"}]
@@ -64,9 +64,11 @@ def _within(line: int, rng: Sequence[int]) -> bool:
     return rng[0] <= line <= rng[1]
 
 
-def _trace_points(finding: dict) -> Iterable[Tuple[str, int]]:
-    for step in finding.get("trace") or []:
-        yield step.get("path") or finding["path"], step["line"]
+def _trace_start(finding: dict) -> Optional[Tuple[str, int]]:
+    trace = finding.get("trace") or []
+    if not trace:
+        return None
+    return trace[0].get("path") or finding["path"], trace[0]["line"]
 
 
 def case_levels(findings: List[dict], case: dict, scope: str,
@@ -92,8 +94,11 @@ def case_levels(findings: List[dict], case: dict, scope: str,
                 if not shared:
                     exact_hits.append(f)
                 break
-    flow_hits = [f for f in exact_hits
-                 if any(p == sp and _within(ln, sr) for p, ln in _trace_points(f) for sp, sr in sources)]
+    flow_hits = []
+    for f in exact_hits:
+        start = _trace_start(f)
+        if start and any(start[0] == sp and _within(start[1], sr) for sp, sr in sources):
+            flow_hits.append(f)
     hits = {"file": file_hits, "vuln": vuln_hits, "exact": exact_hits, "flow": flow_hits}
     return {"levels": {lvl: bool(hits[lvl]) for lvl in LEVELS}, "hits": hits}
 
@@ -111,7 +116,7 @@ def line_map(old_text: str, new_text: str) -> Callable[[Sequence[int]], Range]:
     def one(line: int) -> Range:
         i = line - 1
         for tag, i1, i2, j1, j2 in ops:
-            if i1 <= i < i2 or (i1 == i2 == i):
+            if i1 <= i < i2:  # insertions (i1 == i2) hold no old line
                 if tag == "equal":
                     n = j1 + (i - i1) + 1
                     return n, n

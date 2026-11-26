@@ -1,0 +1,42 @@
+{
+  "_comment": [
+    "Synthetic multi-file suite (phase 3). Every scenario has a vulnerable variant and a safe twin that differs",
+    "only where the vulnerability is fixed. Ground-truth lines are marked in the code with `# gt:source`,",
+    "`# gt:sink` (the advisory-specific line) and `# gt:sink-shared` (a generic helper every caller reaches).",
+    "`expect` for the vulnerable variant is `finding`, or `uncertain` when the flow cannot be resolved",
+    "statically: then a finding is allowed but must not claim certainty (confidence high); the safe twin of",
+    "every scenario must stay quiet. Written by the RedWall developers, so this set is seen, not held-out."
+  ],
+  "cases": [
+    {"id": "s01_three_files", "cwe": "89", "expect": "finding",
+     "tests": "route (A) -> query builder (B) -> generic db helper (C), absolute imports in a package"},
+    {"id": "s02_relative_imports", "cwe": "89", "expect": "finding",
+     "tests": "the same chain written with `from ..core.reports import` and `from . import storage`"},
+    {"id": "s03_src_layout", "cwe": "78", "expect": "finding",
+     "tests": "src/ layout with pyproject.toml; helper imported as `pinger.netutil`"},
+    {"id": "s04_init_reexport", "cwe": "78", "expect": "finding",
+     "tests": "helper re-exported from a package __init__.py and imported from the package"},
+    {"id": "s05_factory", "cwe": "22", "expect": "finding",
+     "tests": "factory function returns an instance of a class from another module; method called on the result"},
+    {"id": "s06_inheritance", "cwe": "89", "expect": "finding",
+     "tests": "method defined on a base class in another module, called on a subclass instance"},
+    {"id": "s07_self_method", "cwe": "78", "expect": "finding",
+     "tests": "class-based view: self.build() in the same class, self.execute() inherited from a mixin in another file"},
+    {"id": "s08_sanitizer_other_file", "cwe": "22", "expect": "finding",
+     "tests": "a wrapper in another file sanitises (safe: secure_filename) or only normalises (vulnerable)"},
+    {"id": "s09_validator_helper", "cwe": "89", "expect": "finding",
+     "tests": "a validator in another file is an allow-list (safe) or a length check (vulnerable)"},
+    {"id": "s10_cyclic_import", "cwe": "78", "expect": "finding",
+     "tests": "two modules import each other; the flow goes a -> b -> a"},
+    {"id": "s11_recursion", "cwe": "22", "expect": "finding",
+     "tests": "a recursive helper builds the path from request values (safe: int() on every part)"},
+    {"id": "s12_getattr_dispatch", "cwe": "78", "expect": "uncertain",
+     "tests": "function chosen with getattr(module, user_value); the callee cannot be known statically"},
+    {"id": "s13_fastapi_typed_param", "cwe": "89", "expect": "finding",
+     "tests": "FastAPI path parameter annotated `str` (vulnerable) or `int` (safe, validated by FastAPI)"},
+    {"id": "s14_grpc_servicer", "cwe": "78", "expect": "finding",
+     "tests": "gRPC servicer method: the request message comes from the network"},
+    {"id": "s15_syntax_error_file", "cwe": "78", "expect": "finding",
+     "tests": "files that do not parse (a syntax error, Python 2 code) must not stop or hide the rest of the scan"}
+  ]
+}
